@@ -1,0 +1,145 @@
+---
+title: "Experiment set-up"
+output: html_document
+date: "2025-02-05"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Libraries
+```{r}
+library(xlsx)
+library(data.table)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggrepel)
+library(stringr)
+```
+
+
+Load data
+```{r}
+# Yeastmine dataset
+yeastmine <- as.data.frame(fread("C:/MyStuff/tRNAs/Data/alliancemine_results_2024-11-20T11-19-04.tsv"))
+
+# Agar growth data
+growth_agar <- as.data.frame(fread("C:/MyStuff/TSSC/Data/Growth/My versions/Processed_by_them/growth_agar.tsv"))
+
+# Master tRNA dataset
+master_dataset <- as.data.frame(fread("C:/MyStuff/tRNAs/Data/GtRNAdb/master_tRNA_dataset.csv"))
+
+# Amino acid information dataset
+amino_acids <- as.data.frame(fread("C:/MyStuff/tRNAs/Data/GtRNAdb/amino_acids.csv"))
+```
+
+
+1. Check how many tRNA-synthetase genes they have in their library
+```{r}
+# Subset yeastmine dataset to only tRNA-synthetases
+trna_synthase_genes <- yeastmine %>%
+  filter(grepl("trna synthase", yeastmine$Gene.name, ignore.case = T) | grepl("trna synthetase", yeastmine$Gene.name, ignore.case = T))
+
+# Grab the tRNA-synthetases that are in the library
+trna_synths_in_library <- trna_synthase_genes[trna_synthase_genes$Gene.secondaryIdentifier %in% growth_agar$Sys.Name,]
+trna_synths_in_library <- trna_synths_in_library[order(trna_synths_in_library$Gene.name),]
+
+# Add a column with the amino acid they load, need to do this manually bc nomenclature of the genes in Yeastmine is a mess lol
+#trna_synths_in_library$Gene.name
+trna_synths_in_library$amino_acid_loaded <- c("Alanine", "Cysteine", "Glutamine or glutamic acid", "Glycine", "Histidine", "Isoleucine", "Methionine", "Phenylalanine", "Phenylalanine", "Tyrosine", "Valine")
+temp <- amino_acids %>% 
+  select(-molecular_weight) %>%
+  rename(amino_acid_loaded = Name)
+trna_synths_in_library <- left_join(trna_synths_in_library, temp, by = "amino_acid_loaded")
+
+# Check, out of the tRNA genes that couldn't be KOd in the library, how many correspond to which amino acids - what defines this? Explore in next chunk
+sort(table(master_dataset$Isotype_from_anticodon[master_dataset$KOd == "No"]))
+
+# Remove unnecessary variables
+rm(temp)
+```
+
+
+# 2. Explore correlation between the number of tRNA genes for a certain amino acid (or anticodon) that couldn't be KOd, and the number of genes with that amino acid/anticodon´+
+```{r}
+# Plots by anticodon
+master_by_anticodon <- master_dataset %>%
+  distinct(Anticodon, .keep_all = T)
+
+## Just the percentage of KOd genes per anticodon
+ggplot(data = master_by_anticodon, aes(x = Anticodon, y = Perc_KOd_genes_per_anticodon)) +
+  geom_point() +
+  theme_light() +
+  geom_text_repel(data = subset(master_by_anticodon, Perc_KOd_genes_per_anticodon < 0.7), aes(x = Anticodon, y = Perc_KOd_genes_per_anticodon, label = Anticodon)) +
+  theme(axis.text.x = element_blank()) +
+  labs(title = "% of tRNA-genes with each anticodon that were KOd") +
+  ylab("% of genes KOd")
+
+
+
+# Plots by amino acid - for some reason distinct() is not working???
+master_by_amino_acid <- master_dataset[!duplicated(master_dataset$Isotype_from_anticodon),]
+
+## Just the percentage of KOd genes per amino acid
+ggplot(data = master_by_amino_acid, aes(x = Isotype_from_anticodon, y = Perc_KOd_genes_per_amino_acid, col = Number_of_tRNAs_loading_this_aa)) +
+  geom_point() +
+  theme_light() +
+  geom_text_repel(data = subset(master_by_amino_acid, Perc_KOd_genes_per_amino_acid < 0.8), aes(x = Isotype_from_anticodon, y = Perc_KOd_genes_per_amino_acid, label = Isotype_from_anticodon)) +
+  theme(axis.text.x = element_blank()) +
+  xlab("Amino acid") +
+  ylab("% of genes KOd") +
+  labs(title = "% of tRNA-genes carrying each amino acid that were KOd",
+       col = "Number of tRNAs\nloading this aa")
+
+# How many tRNA genes are there for each amino acid?
+ggplot(data = master_by_amino_acid, aes(x = Isotype_from_anticodon, y = Number_of_tRNAs_loading_this_aa)) +
+  geom_point() +
+  theme_light() +
+  theme(axis.text.x = element_blank()) +
+  labs(title = "Number of tRNA genes carrying each amino acid") +
+  xlab("Amino acid") +
+  ylab("Number of genes") +
+  geom_text_repel(data = subset(master_by_amino_acid, Number_of_tRNAs_loading_this_aa < 6 | Number_of_tRNAs_loading_this_aa > 20), aes(x = Isotype_from_anticodon, y = Number_of_tRNAs_loading_this_aa, label = Isotype_from_anticodon))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

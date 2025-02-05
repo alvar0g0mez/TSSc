@@ -1,0 +1,2 @@
+"0","growth_agar <- as.data.frame(fread(""C:/MyStuff/TSSC/Data/Growth/My versions/Processed_by_them/growth_agar.tsv""))"
+"0","growth_liquid <- as.data.frame(fread(""C:/MyStuff/TSSC/Data/Growth/My versions/Processed_by_them/growth_liquid.tsv""))"

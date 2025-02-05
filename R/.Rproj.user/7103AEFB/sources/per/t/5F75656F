@@ -1,0 +1,28 @@
+{
+    "id": "5F75656F",
+    "path": "C:/MyStuff/TSSC/Code/R/Initial_growth_exploration.Rmd",
+    "project_path": "Initial_growth_exploration.Rmd",
+    "type": "r_markdown",
+    "hash": "1761482344",
+    "contents": "",
+    "dirty": false,
+    "created": 1737558390394.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "520,0",
+        "scrollLine": "0",
+        "last_setup_crc32": ""
+    },
+    "folds": "18|6|26|0|\n29|6|32|0|\n38|6|63|0|\n67|6|115|0|\n119|6|129|0|\n134|6|240|0|\n243|6|322|0|\n325|6|376|0|\n380|6|394|0|\n444|6|453|0|\n456|6|471|0|\n",
+    "lastKnownWriteTime": 1738770237,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1738770748642,
+    "read_only": false,
+    "read_only_alternatives": []
+}

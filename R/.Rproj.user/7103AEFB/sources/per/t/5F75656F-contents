@@ -1,0 +1,559 @@
+---
+title: "Initial_growth_exploration"
+output: html_document
+date: "2025-01-22"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+-------------------------------------------------------- With their pre-processed data --------------------------------------------------------
+
+
+# 0. Set up
+## 0.1. Load libraries
+```{r}
+library(xlsx)
+library(data.table)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggrepel)
+library(stringr)
+```
+
+## 0.2. Load data
+```{r}
+growth_agar <- as.data.frame(fread("C:/MyStuff/TSSC/Data/Growth/My versions/Processed_by_them/growth_agar.tsv"))
+growth_liquid <- as.data.frame(fread("C:/MyStuff/TSSC/Data/Growth/My versions/Processed_by_them/growth_liquid.tsv"))
+```
+
+
+
+# 1. Start exploring
+## 1.1. Some safety checks
+```{r}
+# Check rows annotated to be excluded in "SB.notes" column - in agar dataset
+levels(as.factor(growth_agar$SB.notes))
+bool_vect_exclude <- grepl("exclude", growth_agar$SB.notes, ignore.case = T)
+bool_vect_exclude_empty <- grepl("empty", growth_agar$SB.notes)
+sum(bool_vect_exclude)                                                  # 20 rows to be excluded
+sum(bool_vect_exclude_empty)                                            # Out of them, 3 is because they are empty
+
+# Check control strain - in agar dataset
+bool_vect_control_strain <- grepl("control", growth_agar$SB.notes)
+sum(bool_vect_control_strain)                                           # Only 1 row of control - makes sense since replicates are in columns
+
+# Check other Notes column - in agar dataset
+#table(as.factor(growth_agar$Notes))
+      # All those that say "Repeat at ..."                  --> also "exclude" in the SB.notes
+      # 1 "failed construction"                             --> also "exclude"
+      # 3 "ignore colony - Li isn't sure what it is"        --> also "exclude"
+      # 8 "Li's control BY4741 + p13623"                    --> also "exclude", not sure why but okay?
+      # "P01-C12: apc11-22_Y11147" and "P01-C12: apc11-22_Y11147", 3rd try --> same IDs! Tag them manually as repeats of the same?
+      # Many individual ones with structure: P01-D12: cdc36-16_Y08308, all other columns in order, not sure what this means
+      # Wild type control, BY4741
+      # Y1239 + p13623 control added by Fang                --> still not sure why this is the control strain but okay. Is it the strain they started from to add the different ts alleles?
+
+# Remove unnecessary variables
+rm(bool_vect_control_strain, bool_vect_exclude, bool_vect_exclude_empty)
+```
+
+
+## 1.2. Check if Notes are the same between agar and liquid datasets, identify problematic rows
+```{r}
+# Check that the levels of the Notes column are the same between datasets
+length(levels(as.factor(growth_agar$Notes))) ==  length(levels(as.factor(growth_liquid$Notes)))                                     # Same number of levels
+sum(levels(as.factor(growth_agar$Notes)) == levels(as.factor(growth_liquid$Notes)))/length(levels(as.factor(growth_agar$Notes)))    # Levels are exactly the same
+
+# Check that the notes are exactly the same in the liquid and agar data for every row
+liquid_temp <- growth_liquid %>%
+  mutate(ID = paste(Sys.Name, Std.Name, TS.allele, Lab.ID, sep = "_")) %>%
+  filter(Dilution == "1/10" & ID != "___") %>%
+  select(Sys.Name, Std.Name, TS.allele, Lab.ID, Notes, SB.notes, ID) %>%
+  rename(Notes_liquid = Notes,
+         SB.notes_liquid = SB.notes)
+agar_temp <- growth_agar %>%
+  mutate(ID = paste(Sys.Name, Std.Name, TS.allele, Lab.ID, sep = "_")) %>%
+  filter(ID != "___") %>%
+  select(Sys.Name, Std.Name, TS.allele, Lab.ID, Notes, SB.notes, ID) %>%
+  rename(Notes_agar = Notes,
+         SB.notes_agar = SB.notes)
+  
+temp <- full_join(liquid_temp, agar_temp, by = c("ID"))                         # This is where the many-to-many relationship happens
+sum(temp$Notes_liquid == temp$Notes_agar)
+sum(temp$SB.notes_liquid == temp$SB.notes_agar)
+
+## Pretty sure that notes are exactly the same between datasets - there are just some problematic rows because their IDs are repeated within each of the datasets
+count_liquid_ID_reps <- c()
+for (i in 1:nrow(liquid_temp)) {
+  ID_liquid <- liquid_temp$ID[i]
+  count_liquid_ID_reps <- c(count_liquid_ID_reps, sum(agar_temp$ID == ID_liquid))
+}
+problematic_rows_liquid <- liquid_temp[count_liquid_ID_reps != 1,]
+
+count_agar_ID_reps <- c()
+for (i in 1:nrow(agar_temp)) {
+  ID_agar <- agar_temp$ID[i]
+  count_agar_ID_reps <- c(count_agar_ID_reps, sum(liquid_temp$ID == ID_agar))
+}
+problematic_rows_agar <- agar_temp[count_agar_ID_reps != 1,]
+
+## Check that these 2 dataframes are exactly equal to each other
+ncol(problematic_rows_agar)*nrow(problematic_rows_agar) == (ncol(problematic_rows_liquid)*nrow(problematic_rows_liquid))    # Check same dimensions
+sum(problematic_rows_agar == problematic_rows_liquid)/(ncol(problematic_rows_agar)*nrow(problematic_rows_agar))              # Check all position equal
+
+## Sumarize all of this in a single dataframe and delete all the other stuff                                                    
+problematic_rows <- problematic_rows_agar
+
+
+# Remove unnecesary variables
+rm(problematic_rows_agar, problematic_rows_liquid, agar_temp, liquid_temp, i, count_agar_ID_reps, count_liquid_ID_reps, ID_agar, ID_liquid, temp)
+```
+
+
+## 1.3. Get final version of the data to work with
+```{r}
+# Exclude rows to be excluded
+growth_agar <- growth_agar[!(grepl("exclude", growth_agar$SB.notes, ignore.case = T)),]
+growth_liquid <- growth_liquid[!(grepl("exclude", growth_liquid$SB.notes, ignore.case = T)),]
+
+# Separate liquid into 2 datasets - for the 2 different dilutions
+growth_liquid_1_10 <- growth_liquid %>% filter(Dilution == "1/10")
+growth_liquid_1_100 <- growth_liquid %>% filter(Dilution == "1/100")
+growth_liquid_full <- growth_liquid
+rm(growth_liquid)
+```
+
+
+## 1.4. Initial plots
+### For agar data
+```{r}
+# Overlayed histograms for the 2 temperatures
+ggplot(data = growth_agar) +
+  geom_histogram(aes(x = Avg_AUC_22, fill = "22ºC"), alpha = 0.4, position="identity") +
+  geom_histogram(aes(x = Avg_AUC_26, fill = "26ºC"), alpha = 0.4, position="identity") +
+  theme_light() +
+  ylab("Count") +
+  xlab("Average AUC across biological replicates") +
+  scale_fill_manual(name = "Temperature",
+                     breaks = c("22ºC", "26ºC"),
+                     values = c("22ºC"="lightblue", "26ºC"="orange"))
+
+# Get a histogram of the difference
+ggplot(data = growth_agar, aes(x = Avg_AUC_26 - Avg_AUC_22)) +
+  geom_histogram(col = "black", fill = "grey") +
+  theme_light() +
+  ylab("Count") +
+  xlab("Diff. in average AUC (26ºC - 22ºC)")
+
+
+# Get a scatter plot of Avg_AUC_22 vs. Avg_AUC_26 (same info as the histogram, but I think this one is more informative)
+## Get the ratio between the 2 to color by it
+growth_agar <- growth_agar %>%
+  mutate(Ratio_26_to_22 = as.factor(case_when(Avg_AUC_26/Avg_AUC_22 < 0.8 ~ "Below_0.8",
+                                    TRUE ~ "Above_0.8")))
+## Get the plot
+ggplot(data = growth_agar, aes(x = Avg_AUC_22, y = Avg_AUC_26)) +
+  geom_point() +
+  geom_abline() +
+  theme_light() +
+  labs(col = "Ratio 26ºC/22ºC") +
+  labs(title = "With average AUCs across replicates") +
+  xlab("AUC at 22ºC") +
+  ylab("AUC at 26ºC")
+
+
+# Get the same scatter plot but using the AUCs normalized based on the plate average - I assume this kind of corrects for batch effects? Or that is their idea?
+## Get the ratio
+growth_agar <- growth_agar %>%
+  mutate(Ratio_26_to_22_norm_by_plate = as.factor(case_when(Relative_AUC_to_plate_mean_26/Relative_AUC_to_plate_mean_22 < 0.8 ~ "Below_0.8",
+                                                  TRUE ~ "Above_0.8")))
+## Get the plot
+ggplot(data = growth_agar, aes(x = Relative_AUC_to_plate_mean_22, y = Relative_AUC_to_plate_mean_26)) +
+  geom_point() +
+  geom_abline() +
+  labs(col = "Ratio 26ºC/22ºC") +
+  theme_light() +
+  labs(title = "With (average) AUCs normalized to plate mean") +
+  xlab("AUC at 22ºC") +
+  ylab("AUC at 26ºC")
+
+
+# Get the same scatter plot but using the AUCs normalized based on the WTs in each plate
+## Get the ratio
+growth_agar <- growth_agar %>%
+  mutate(Ratio_26_to_22_norm_by_control = as.factor(case_when(Relative_AUC_to_control_mean_26/Relative_AUC_to_control_mean_22 < 0.8 ~ "Below_0.8",
+                                                  TRUE ~ "Above_0.8")))
+## Get the plot
+ggplot(data = growth_agar, aes(x = Relative_AUC_to_control_mean_22, y = Relative_AUC_to_control_mean_26)) +
+  geom_point() +
+  geom_abline() +
+  labs(col = "Ratio 26ºC/22ºC") +
+  theme_light() +
+  labs(title = "With (average) AUCs normalized to plate mean") +
+  xlab("AUC at 22ºC") +
+  ylab("AUC at 26ºC")
+
+
+# Same plot but color by plate just to be sure there isn't a huge effect of that - there is :(
+ggplot(data = growth_agar, aes(x = Relative_AUC_to_control_mean_22, y = Relative_AUC_to_control_mean_26, col = as.factor(Plate384))) +
+  geom_point() +
+  geom_abline() +
+  labs(col = "Plate") +
+  labs(title = "With (average) AUCs normalized to control mean") +
+  theme_light() +
+  xlab("AUC at 22ºC") +
+  ylab("AUC at 26ºC")
+
+
+
+# Oh no, all the ones that seem to grow better between 22ºC are from a certain 384-well plate - come up with plate_column and plate_row variables that I can plot based on
+growth_agar <- growth_agar %>%
+  mutate(Plate_Column = paste(Plate384, Col384, sep="_"),
+         Plate_Row = paste(Plate384, Row384, sep="_"))
+
+# Plot based on Plate_Column
+ggplot(data = growth_agar, aes(x = Avg_AUC_22, y = Avg_AUC_26, col = as.factor(Plate_Column))) +
+  geom_point() +
+  geom_abline() +
+  labs(col = "Ratio 26ºC/22ºC") +
+  theme_light() +
+  xlab("AUC at 22ºC") +
+  ylab("AUC at 26ºC") +
+  geom_text_repel(data = subset(growth_agar, Ratio_26_to_22 == "Below_0.8"), aes(x = Avg_AUC_22, y = Avg_AUC_26, col = as.factor(Plate_Column), label = Plate_Column)) +
+  theme(legend.position = "none")
+
+# Plot based on Plate_Row
+ggplot(data = growth_agar, aes(x = Avg_AUC_22, y = Avg_AUC_26, col = as.factor(Plate_Row))) +
+  geom_point() +
+  geom_abline() +
+  labs(col = "Ratio 26ºC/22ºC") +
+  theme_light() +
+  xlab("AUC at 22ºC") +
+  ylab("AUC at 26ºC") +
+  geom_text_repel(data = subset(growth_agar, Ratio_26_to_22 == "Below_0.8"), aes(x = Avg_AUC_22, y = Avg_AUC_26, col = as.factor(Plate_Row), label = Plate_Column)) +
+  theme(legend.position = "none")
+```
+
+### For liquid data 1/10
+```{r}
+# Overlayed histograms for the 2 temperatures
+ggplot(data = growth_liquid_1_10) +
+  geom_histogram(aes(x = Avg_AUC_22, fill = "22ºC"), alpha = 0.4, position="identity") +
+  geom_histogram(aes(x = Avg_AUC_26, fill = "26ºC"), alpha = 0.4, position="identity") +
+  theme_light() +
+  ylab("Count") +
+  xlab("Average AUC across biological replicates") +
+  scale_fill_manual(name = "Temperature",
+                     breaks = c("22ºC", "26ºC"),
+                     values = c("22ºC"="lightblue", "26ºC"="orange"))
+
+# Overlayed histogram colored by Platenum
+ggplot(data = growth_liquid_1_10) +
+  geom_histogram(aes(x = Avg_AUC_22, fill = Platenum, group = Platenum), alpha = 0.4, position="identity") +
+  geom_histogram(aes(x = Avg_AUC_26, fill = Platenum, group = Platenum), alpha = 0.4, position="identity") +
+  theme_light() +
+  ylab("Count") +
+  xlab("Average AUC across biological replicates")
+
+# Get a histogram of the difference
+ggplot(data = growth_liquid_1_10, aes(x = Avg_AUC_26 - Avg_AUC_22)) +
+  geom_histogram(col = "black", fill = "grey") +
+  theme_light() +
+  ylab("Count") +
+  xlab("Diff. in average AUC (26ºC - 22ºC)")
+
+# Get a scatter plot of Avg_AUC_22 vs. Avg_AUC_26 (same info as the histogram, but I think this one is more informative)
+## Get the ratio between the 2 to color by it
+growth_liquid_1_10 <- growth_liquid_1_10 %>%
+  mutate(Ratio_26_to_22 = as.factor(case_when(Avg_AUC_26/Avg_AUC_22 < 0.8 ~ "Below_0.8",
+                                    TRUE ~ "Above_0.8")))
+
+## Get the plot
+ggplot(data = growth_liquid_1_10, aes(x = Avg_AUC_22, y = Avg_AUC_26)) +
+  geom_point() +
+  geom_abline() +
+  theme_light() +
+  labs(col = "Ratio 26ºC/22ºC") +
+  labs(title = "With average AUCs across replicates") +
+  xlab("AUC at 22ºC") +
+  ylab("AUC at 26ºC")
+
+# Get the same scatter plot but using the AUCs normalized based on the plate average - I assume this kind of corrects for batch effects? Or that is their idea?
+## Get the ratio
+growth_liquid_1_10 <- growth_liquid_1_10 %>%
+  mutate(Ratio_26_to_22_norm_by_plate = as.factor(case_when(Relative_AUC_to_plate_mean_26/Relative_AUC_to_plate_mean_22 < 0.8 ~ "Below_0.8",
+                                                  TRUE ~ "Above_0.8")))
+
+## Get the plot
+ggplot(data = growth_liquid_1_10, aes(x = Relative_AUC_to_plate_mean_22, y = Relative_AUC_to_plate_mean_26)) +
+  geom_point() +
+  geom_abline() +
+  labs(col = "Ratio 26ºC/22ºC") +
+  theme_light() +
+  labs(title = "With (average) AUCs normalized to plate mean") +
+  xlab("AUC at 22ºC") +
+  ylab("AUC at 26ºC")
+
+
+# Color by Platenum (whatever that is) just to be sure there isn't a huge effect of that - there is :(
+ggplot(data = growth_liquid_1_10, aes(x = Avg_AUC_22, y = Avg_AUC_26, col = as.factor(Platenum))) +
+  geom_point() +
+  geom_abline() +
+  labs(col = "Plate") +
+  labs(title = "With average AUCs across replicates") +
+  theme_light() +
+  xlab("AUC at 22ºC") +
+  ylab("AUC at 26ºC")
+
+## Get the plot
+ggplot(data = growth_liquid_1_10, aes(x = Relative_AUC_to_plate_mean_22, y = Relative_AUC_to_plate_mean_26, col = as.factor(Platenum))) +
+  geom_point() +
+  geom_abline() +
+  labs(col = "Ratio 26ºC/22ºC") +
+  theme_light() +
+  labs(title = "With (average) AUCs normalized to plate mean") +
+  xlab("AUC at 22ºC") +
+  ylab("AUC at 26ºC")
+```
+
+### For liquid data 1/100
+```{r}
+# Overlayed histograms for the 2 temperatures
+ggplot(data = growth_liquid_1_100) +
+  geom_histogram(aes(x = Avg_AUC_22, fill = "22ºC"), alpha = 0.4, position="identity") +
+  geom_histogram(aes(x = Avg_AUC_26, fill = "26ºC"), alpha = 0.4, position="identity") +
+  theme_light() +
+  ylab("Count") +
+  xlab("Average AUC across biological replicates") +
+  scale_fill_manual(name = "Temperature",
+                     breaks = c("22ºC", "26ºC"),
+                     values = c("22ºC"="lightblue", "26ºC"="orange"))
+
+# Get a histogram of the difference
+ggplot(data = growth_liquid_1_100, aes(x = Avg_AUC_26 - Avg_AUC_22)) +
+  geom_histogram(col = "black", fill = "grey") +
+  theme_light() +
+  ylab("Count") +
+  xlab("Diff. in average AUC (26ºC - 22ºC)")
+
+# Get a scatter plot of Avg_AUC_22 vs. Avg_AUC_26 (same info as the histogram, but I think this one is more informative)
+## Get the ratio between the 2 to color by it
+growth_liquid_1_100 <- growth_liquid_1_100 %>%
+  mutate(Ratio_26_to_22 = as.factor(case_when(Avg_AUC_26/Avg_AUC_22 < 0.8 ~ "Below_0.8",
+                                    TRUE ~ "Above_0.8")))
+
+## Get the plot
+ggplot(data = growth_liquid_1_100, aes(x = Avg_AUC_22, y = Avg_AUC_26)) +
+  geom_point() +
+  geom_abline() +
+  theme_light() +
+  labs(col = "Ratio 26ºC/22ºC") +
+  labs(title = "With average AUCs across replicates") +
+  xlab("AUC at 22ºC") +
+  ylab("AUC at 26ºC")
+
+# Get the same scatter plot but using the AUCs normalized based on the plate average - I assume this kind of corrects for batch effects? Or that is their idea?
+## Get the ratio
+growth_liquid_1_100 <- growth_liquid_1_100 %>%
+  mutate(Ratio_26_to_22_norm_by_plate = as.factor(case_when(Relative_AUC_to_plate_mean_26/Relative_AUC_to_plate_mean_22 < 0.8 ~ "Below_0.8",
+                                                  TRUE ~ "Above_0.8")))
+
+## Get the plot
+## Get the plot
+ggplot(data = growth_liquid_1_100, aes(x = Relative_AUC_to_plate_mean_22, y = Relative_AUC_to_plate_mean_26)) +
+  geom_point() +
+  geom_abline() +
+  labs(col = "Ratio 26ºC/22ºC") +
+  theme_light() +
+  labs(title = "With (average) AUCs normalized to plate mean") +
+  xlab("AUC at 22ºC") +
+  ylab("AUC at 26ºC")
+```
+
+
+## 1.5. Identify strains growing less in 22ºC
+```{r}
+# Based on their growth curves
+weird_strains <- growth_agar %>% filter(Ratio_26_to_22 == "Below_0.8")
+sort(unique(weird_strains$Row384))
+sort(unique(weird_strains$Col384))
+
+# Based on the article from Li et al., 2011
+li_1 <- fread("C:/MyStuff/TSSC/Data/From articles/Li_et_al_2011/Li_et_al_S1.csv")
+li_1 <- li_1 %>%
+  rename(TS.allele = ts.allele) %>%
+  filter(sick_temp_lower == 26 | sick_temp_upper == 26 | lethal_temp_lower == 26 | lethal_temp_upper == 26)
+
+# Check how many of the weird ones based on growth data are among those sick at 22ºC in the article - well fuck me
+sum(weird_strains$TS.allele %in% li_1$TS.allele)
+```
+
+
+
+
+
+
+FROM THE 2011 ARTICLE
+
+FIGURE OUT THE GROWTH CURVES FOR EACH TS ESSENTIAL GENE AT DIFFERENT TEMPS
+```{r}
+# This is the library I think I can use the AUC() function from
+library(DescTools)
+
+# Load data
+lethal_temps <- read.xlsx("C:/MyStuff/TSSC/Data/From articles/Li_et_al_2011/Li_et_al_S3.xls", 1, startRow = 2)
+
+# So in the data we have, in the columns: growth rate, growth efficiency and growth lag, all of them at 2ºC increments between 24ºC and 40ºC
+# In each row we have one of the essential gene ts strains
+# NEED TO FIGURE OUT WHICH ONES I WANT TO LOOK AT, I THOUGHT THE EASIEST WOULD BE TO JUST LOOK AT A GROWTH CURVE BUT WITH THESE COLUMNS IDK
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-------------------------------------------------------- With their raw growth data --------------------------------------------------------
+
+
+# 0. Set up
+## 0.1. Load libraries
+```{r}
+library(xlsx)
+library(data.table)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggrepel)
+library(stringr)
+library(DescTools)
+```
+
+## 0.2. Load data and preprocess
+```{r}
+raw_agar <- as.data.frame(fread("C:/MyStuff/TSSC/Data/Growth/Original data/Raw/agar_raw_data.tsv"))
+
+# Remove rows that are tagged as "exclude"
+raw_agar <- raw_agar[!(grepl("exclude", raw_agar$SB.notes, ignore.case = T)),]
+
+# Remove rows that don't have neither a "Lab.ID" nor a "Notes" (the controls don't have the first but do have the second)
+raw_agar <- raw_agar %>%
+  filter(!(Lab.ID == "" & Notes == "")) %>%
+  select(-`Sys Name`)
+
+# Create a unique ID column
+raw_agar <- raw_agar %>%
+  mutate(Unique.ID = case_when(Lab.ID != "" ~ paste(Lab.ID, "Positions", plate384, row384, col384, plate1536, row1536, col1536, sep = "_"),
+                               Lab.ID == "" ~ paste(Notes, "Positions", plate384, row384, col384, plate1536, row1536, col1536, sep = "_")))
+```
+
+
+
+# 1. Come up with the AUC values
+Doing this in a very naïve way: not removing outliers from the growth curve before getting the AUC or anything like that, maybe I should do that? I am also ignoring the circularity, although from what Johannes said that seems alright. 
+```{r}
+# Iterate over the unique wells and calculate the AUC for each of them
+wells <- unique(raw_agar$Unique.ID)
+samples <- c()
+replicate <- c()
+temperatures <- c()
+AUCs <- c()
+
+
+for (i in 1:length(wells)) {
+  # Define which sample we are evaluating in this iteration
+  well <- wells[i]
+  
+  # Divide the dataset for this sample into 4, based on temperature and replicate
+  temp_22_rep_1 <- raw_agar %>% filter(Unique.ID == well & temperature == 22 & replicate == 1)
+  temp_26_rep_1 <- raw_agar %>% filter(Unique.ID == well & temperature == 26 & replicate == 1)
+  temp_22_rep_2 <- raw_agar %>% filter(Unique.ID == well & temperature == 22 & replicate == 2)
+  temp_26_rep_2 <- raw_agar %>% filter(Unique.ID == well & temperature == 26 & replicate == 2)
+  
+  # Calculate the AUC for each sub-dataset and save them to a vector
+  AUCs <- c(AUCs, AUC(x = as.numeric(as.POSIXct(temp_22_rep_1$ts)), y = temp_22_rep_1$size, na.rm = T), 
+            AUC(x = as.numeric(as.POSIXct(temp_26_rep_1$ts)), y = temp_26_rep_1$size, na.rm = T),
+            AUC(x = as.numeric(as.POSIXct(temp_22_rep_2$ts)), y = temp_22_rep_2$size, na.rm = T), 
+            AUC(x = as.numeric(as.POSIXct(temp_26_rep_2$ts)), y = temp_26_rep_2$size, na.rm = T))
+  
+  # Save all other data (sample name, replicate, temperature) to other vectors so we can put them all together into a final dataset
+  samples <- c(samples, well, well, well, well)
+  temperatures <- c(temperatures, 22, 26, 22, 26)
+  replicate <- c(replicate, 1, 1, 2, 2)
+}
+
+
+# Build a dataset from the obtained data, and make it look like theirs did - colnames I want to end up with:
+# Plate384, Row384, Col384, Sys.Name, Std.Name, TS.allele, Lab.ID, Notes, SB.notes, Rep_1_AUC_22, Rep_2_AUC_22, Avg_AUC_22, Relative_AUC_to_control_mean_22, Relative_AUC_to_plate_mean_22, Rep_1_AUC_26, Rep_2_AUC_26, Avg_AUC_26, Relative_AUC_to_control_mean_26, Relative_AUC_to_plate_mean_26
+AUCs_temp <- data.frame(Unique.ID = samples, temperature = temperatures, AUCs, replicate)
+raw_agar_temp <- raw_agar %>%
+  select(-c(size, circularity, ts)) %>%
+  distinct(Unique.ID, temperature, .keep_all = T)
+
+AUCs_df <- left_join(AUCs_temp, raw_agar_temp, by = c("Unique.ID", "temperature", "replicate"))
+
+
+## Separate by replicates, rename columns and then join again as different columns
+AUCs_rep_1_22 <- AUCs_df %>% 
+  filter(replicate == 1 & temperature == 22) %>%
+  rename(Rep_1_AUC_22 = AUCs)
+  
+AUCs_rep_2_22 <- AUCs_df %>% 
+  filter(replicate == 2 & temperature == 22) %>%
+  rename(Rep_2_AUC_22 = AUCs)
+
+AUCs_rep_1_26 <- AUCs_df %>% 
+  filter(replicate == 1 & temperature == 26) %>%
+  rename(Rep_1_AUC_26 = AUCs)
+  
+AUCs_rep_2_26 <- AUCs_df %>% 
+  filter(replicate == 2 & temperature == 26) %>%
+  rename(Rep_2_AUC_26 = AUCs)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
