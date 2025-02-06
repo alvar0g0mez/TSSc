@@ -10,6 +10,13 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 
+We received some preliminary growth data for the strains in the library at 22ºC and 26ºC, both as AUC of growth curves and as raw data. 
+Here I analyze both of them and compare the results. The goal of this was to figure out which temperatures would be optimal for the culture. 
+
+
+
+
+
 
 -------------------------------------------------------- With their pre-processed data --------------------------------------------------------
 
@@ -399,24 +406,6 @@ sum(weird_strains$TS.allele %in% li_1$TS.allele)
 
 
 
-FROM THE 2011 ARTICLE
-
-FIGURE OUT THE GROWTH CURVES FOR EACH TS ESSENTIAL GENE AT DIFFERENT TEMPS
-```{r}
-# This is the library I think I can use the AUC() function from
-library(DescTools)
-
-# Load data
-lethal_temps <- read.xlsx("C:/MyStuff/TSSC/Data/From articles/Li_et_al_2011/Li_et_al_S3.xls", 1, startRow = 2)
-
-# So in the data we have, in the columns: growth rate, growth efficiency and growth lag, all of them at 2ºC increments between 24ºC and 40ºC
-# In each row we have one of the essential gene ts strains
-# NEED TO FIGURE OUT WHICH ONES I WANT TO LOOK AT, I THOUGHT THE EASIEST WOULD BE TO JUST LOOK AT A GROWTH CURVE BUT WITH THESE COLUMNS IDK
-```
-
-
-
-
 
 
 
@@ -465,10 +454,12 @@ raw_agar <- raw_agar %>%
   filter(!(Lab.ID == "" & Notes == "")) %>%
   select(-`Sys Name`)
 
-# Create a unique ID column
+# Create a unique ID column and 2 other ID columns, each based on the positions in each of the plates (Plate_Row_Col structure)
 raw_agar <- raw_agar %>%
   mutate(Unique.ID = case_when(Lab.ID != "" ~ paste(Lab.ID, "Positions", plate384, row384, col384, plate1536, row1536, col1536, sep = "_"),
-                               Lab.ID == "" ~ paste(Notes, "Positions", plate384, row384, col384, plate1536, row1536, col1536, sep = "_")))
+                               Lab.ID == "" ~ paste(Notes, "Positions", plate384, row384, col384, plate1536, row1536, col1536, sep = "_")),
+         Plate384.ID = paste(plate384, row384, col384, sep = "_"),
+         Plate1536.ID = paste(plate1536, row1536, col1536, sep ="_"))
 ```
 
 
@@ -510,29 +501,90 @@ for (i in 1:length(wells)) {
 # Build a dataset from the obtained data, and make it look like theirs did - colnames I want to end up with:
 # Plate384, Row384, Col384, Sys.Name, Std.Name, TS.allele, Lab.ID, Notes, SB.notes, Rep_1_AUC_22, Rep_2_AUC_22, Avg_AUC_22, Relative_AUC_to_control_mean_22, Relative_AUC_to_plate_mean_22, Rep_1_AUC_26, Rep_2_AUC_26, Avg_AUC_26, Relative_AUC_to_control_mean_26, Relative_AUC_to_plate_mean_26
 AUCs_temp <- data.frame(Unique.ID = samples, temperature = temperatures, AUCs, replicate)
-raw_agar_temp <- raw_agar %>%
+raw_agar_temp_1 <- raw_agar %>%
   select(-c(size, circularity, ts)) %>%
-  distinct(Unique.ID, temperature, .keep_all = T)
+  distinct(Unique.ID, temperature, replicate, .keep_all = T)
 
-AUCs_df <- left_join(AUCs_temp, raw_agar_temp, by = c("Unique.ID", "temperature", "replicate"))
+raw_agar_temp_2 <- raw_agar %>%
+  select(Unique.ID, temperature, replicate, plate384, row384, col384) %>%
+  distinct(Unique.ID, temperature, replicate, .keep_all = T)
 
 
-## Separate by replicates, rename columns and then join again as different columns
-AUCs_rep_1_22 <- AUCs_df %>% 
+## Separate by replicates, rename columns
+## In this process I create an ID for the 384-well plate so that I can collapse by it
+AUCs_rep_1_22 <- AUCs_temp %>% 
   filter(replicate == 1 & temperature == 22) %>%
-  rename(Rep_1_AUC_22 = AUCs)
+  left_join(raw_agar_temp_2, by = c("Unique.ID", "temperature", "replicate")) %>%
+  mutate(Plate384.ID = paste(plate384, row384, col384, sep = "_")) %>%
+  group_by(Plate384.ID) %>%
+  mutate(Rep_1_AUC_22 = mean(AUCs)) %>%
+  ungroup() %>%
+  select(-c(AUCs, plate384, row384, col384)) %>%
+  distinct(Plate384.ID, .keep_all = T) %>%
+  left_join(raw_agar_temp, by = c("Unique.ID", "temperature", "replicate")) %>%
+  relocate(Rep_1_AUC_22, .after = last_col())
   
-AUCs_rep_2_22 <- AUCs_df %>% 
+AUCs_rep_2_22 <- AUCs_temp %>% 
   filter(replicate == 2 & temperature == 22) %>%
-  rename(Rep_2_AUC_22 = AUCs)
+  left_join(raw_agar_temp_2, by = c("Unique.ID", "temperature", "replicate")) %>%
+  mutate(Plate384.ID = paste(plate384, row384, col384, sep = "_")) %>%
+  group_by(Plate384.ID) %>%
+  mutate(Rep_2_AUC_22 = mean(AUCs)) %>%
+  ungroup() %>%
+  select(-c(AUCs, plate384, row384, col384)) %>%
+  distinct(Plate384.ID, .keep_all = T) %>%
+  select(Plate384.ID, Rep_2_AUC_22)
 
-AUCs_rep_1_26 <- AUCs_df %>% 
+AUCs_rep_1_26 <- AUCs_temp %>% 
   filter(replicate == 1 & temperature == 26) %>%
-  rename(Rep_1_AUC_26 = AUCs)
+  left_join(raw_agar_temp_2, by = c("Unique.ID", "temperature", "replicate")) %>%
+  mutate(Plate384.ID = paste(plate384, row384, col384, sep = "_")) %>%
+  group_by(Plate384.ID) %>%
+  mutate(Rep_1_AUC_26 = mean(AUCs)) %>%
+  ungroup() %>%
+  select(-c(AUCs, plate384, row384, col384)) %>%
+  distinct(Plate384.ID, .keep_all = T) %>%
+  select(Plate384.ID, Rep_1_AUC_26)
   
-AUCs_rep_2_26 <- AUCs_df %>% 
+AUCs_rep_2_26 <- AUCs_temp %>% 
   filter(replicate == 2 & temperature == 26) %>%
-  rename(Rep_2_AUC_26 = AUCs)
+  left_join(raw_agar_temp_2, by = c("Unique.ID", "temperature", "replicate")) %>%
+  mutate(Plate384.ID = paste(plate384, row384, col384, sep = "_")) %>%
+  group_by(Plate384.ID) %>%
+  mutate(Rep_2_AUC_26 = mean(AUCs)) %>%
+  ungroup() %>%
+  select(-c(AUCs, plate384, row384, col384)) %>%
+  distinct(Plate384.ID, .keep_all = T) %>%
+  select(Plate384.ID, Rep_2_AUC_26)
+
+
+## Join these separate datasets 
+final_AUCs <- left_join(AUCs_rep_1_26, AUCs_rep_2_22, by = c("Plate384.ID"))
+final_AUCs <- left_join(final_AUCs, AUCs_rep_2_26, by = c("Plate384.ID"))
+final_AUCs <- left_join(AUCs_rep_1_22, final_AUCs, by = c("Plate384.ID"))
+
+## Get some final columns to have the same information as in the original one
+final_AUCs <- final_AUCs %>%
+  select(-replicate) %>%
+  mutate(Avg_AUC_22 = mean(Rep_1_AUC_22, Rep_2_AUC_22),
+         Avg_AUC_26 = mean(Rep_1_AUC_26, Rep_2_AUC_26))
+```
+
+
+# 2. Plot and see if it looks anything like the previous one
+Okay my units are pretty different from theirs, so I guess we did this in different ways, but still the plots look pretty similar to each other. 
+```{r}
+ggplot(data = final_AUCs, aes(x = Avg_AUC_22, y = Avg_AUC_26, col = as.factor(plate384))) +
+  geom_point() +
+  geom_abline() +
+  theme_light() +
+  labs(col = "384-well plate")
+
+ggplot(data = final_AUCs, aes(x = Avg_AUC_22, y = Avg_AUC_26, col = as.factor(plate1536))) +
+  geom_point() +
+  geom_abline() +
+  theme_light() +
+  labs(col = "1536-well plate")
 ```
 
 
