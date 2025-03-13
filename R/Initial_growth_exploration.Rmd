@@ -33,10 +33,22 @@ library(ggrepel)
 library(stringr)
 ```
 
-## 0.2. Load data
+## 0.2. Set up environment
 ```{r}
-growth_agar <- as.data.frame(fread("C:/MyStuff/TSSC/Data/Growth/My versions/Processed_by_them/growth_agar.tsv"))
-growth_liquid <- as.data.frame(fread("C:/MyStuff/TSSC/Data/Growth/My versions/Processed_by_them/growth_liquid.tsv"))
+working_from = "charite"
+
+if (working_from == "home") {
+  base_dir = "/home/alvaro/MyStuff/TSSc/"
+} else
+if (working_from == "charite") {
+  base_dir = "C:/MyStuff/TSSC/"
+}
+```
+
+## 0.3. Load data
+```{r}
+growth_agar <- as.data.frame(fread(paste(base_dir, "Data/Growth/Mine/Processed_by_them/growth_agar.tsv", sep="")))
+growth_liquid <- as.data.frame(fread(paste(base_dir, "Data/Growth/Mine/Processed_by_them/growth_liquid.tsv", sep="")))
 ```
 
 
@@ -245,6 +257,24 @@ ggplot(data = growth_agar, aes(x = Avg_AUC_22, y = Avg_AUC_26, col = as.factor(P
   ylab("AUC at 26ºC") +
   geom_text_repel(data = subset(growth_agar, Ratio_26_to_22 == "Below_0.8"), aes(x = Avg_AUC_22, y = Avg_AUC_26, col = as.factor(Plate_Row), label = Plate_Column)) +
   theme(legend.position = "none")
+
+
+
+
+# I actually also want to color this by the strains that have a TS allele for a tRNA synthetase, let me do that real quick
+synthetases <- as.data.frame(fread("C:/MyStuff/tRNA_KOs/Data/trna_synthetases.csv"))
+growth_agar <- growth_agar %>%
+  mutate(Synthetase = case_when(Sys.Name %in% synthetases$Gene.secondaryIdentifier ~ "Yes",
+                                TRUE ~ "No"))
+
+ggplot(data = growth_agar, aes(x = Avg_AUC_22, y = Avg_AUC_26, col = as.factor(Synthetase))) +
+  geom_point() +
+  geom_abline() +
+  labs(col = "Ratio 26ºC/22ºC") +
+  theme_light() +
+  xlab("AUC at 22ºC") +
+  ylab("AUC at 26ºC") +
+  geom_text_repel(data = subset(growth_agar, Synthetase == "Yes"), aes(x = Avg_AUC_22, y = Avg_AUC_26, col = as.factor(Synthetase), label = Sys.Name))
 ```
 
 ### For liquid data 1/10
