@@ -3,10 +3,10 @@
 working_from = "charite"
 
 if (working_from == "home") {
-  base_dir = "/home/alvaro/MyStuff/tRNA_KOs/"
+  base_dir = "/home/alvaro/MyStuff/TSSc/"
 } else
   if (working_from == "charite") {
-    base_dir = "C:/MyStuff/tRNA_KOs/"
+    base_dir = "C:/MyStuff/TSSC/"
   }
 
 
@@ -14,6 +14,8 @@ if (working_from == "home") {
 library(dplyr)
 library(tidyr)
 library(xlsx)
+library(data.table)
+
 
 
 
@@ -55,53 +57,12 @@ sample_layout <- growth_agar %>%
          Synthetase = case_when(Sys.Name %in% synthetases$Gene.secondaryIdentifier ~ "Yes",
                                 TRUE ~ "No")) 
 
+# 2. Add a column with with well IDs in the "traditional" manner - for platetools
+sample_layout <- sample_layout %>%
+  mutate(Well_ID_non_unique = case_when(nchar(as.character(Col384)) == 1 ~ paste(LETTERS[Row384], 0, Col384, sep=""),
+                                        TRUE ~ paste(LETTERS[Row384], Col384, sep="")))
 
-# Save this dataframe 
+
+# 3. Save this dataframe 
 fwrite(sample_layout, paste(base_dir, "Data/Boone_lab/sample_layout.csv", sep=""))
-
-
-
-
-# Delete this, just a quick check
-temp <- sample_layout %>%
-  filter(Available == "Yes" & Synthetase == "Yes")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

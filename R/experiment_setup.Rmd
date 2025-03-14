@@ -18,98 +18,99 @@ library(tidyr)
 library(ggplot2)
 library(ggrepel)
 library(stringr)
+library(glue)
+library(viridis)
+library(platetools)
 ```
 
 
-Load data
+
+
+# 0. Set up
+## 0.1. Set up directory
 ```{r}
-# Yeastmine dataset
-yeastmine <- as.data.frame(fread("C:/MyStuff/tRNAs/Data/alliancemine_results_2024-11-20T11-19-04.tsv"))
+working_from = "charite"
+
+if (working_from == "home") {
+  base_dir = "/home/alvaro/MyStuff/"
+} else
+  if (working_from == "charite") {
+    base_dir = "C:/MyStuff/"
+  }
+
+```
+
+## 0.2. Load data
+```{r}
+# Synthetases dataframe
+synthetases <- as.data.frame(fread(paste(base_dir, "tRNA_KOs/Data/trna_synthetases.csv", sep="")))
 
 # Agar growth data
-growth_agar <- as.data.frame(fread("C:/MyStuff/TSSC/Data/Growth/My versions/Processed_by_them/growth_agar.tsv"))
+growth_agar <- as.data.frame(fread(paste(base_dir, "TSSC/Data/Boone_lab/Growth/Mine/Processed_by_them/growth_agar.tsv", sep="")))
 
 # Master tRNA dataset
-master_dataset <- as.data.frame(fread("C:/MyStuff/tRNAs/Data/GtRNAdb/master_tRNA_dataset.csv"))
+master_dataset <- as.data.frame(fread(paste(base_dir, "tRNA_KOs/Data/Other/GtRNAdb/master_tRNA_dataset.csv", sep="")))
 
 # Amino acid information dataset
-amino_acids <- as.data.frame(fread("C:/MyStuff/tRNAs/Data/GtRNAdb/amino_acids.csv"))
+amino_acids <- as.data.frame(fread(paste(base_dir, "tRNA_KOs/Data/Other/GtRNAdb/amino_acids.csv", sep="")))
+
+# Layout of samples in the 384-well plates we got from the Boone lab
+sample_layout <- as.data.frame(fread(paste(base_dir, "TSSC/Data/Boone_lab/sample_layout.csv", sep="")))
 ```
 
 
-1. Check how many tRNA-synthetase genes they have in their library
-```{r}
-# Subset yeastmine dataset to only tRNA-synthetases
-trna_synthase_genes <- yeastmine %>%
-  filter(grepl("trna synthase", yeastmine$Gene.name, ignore.case = T) | grepl("trna synthetase", yeastmine$Gene.name, ignore.case = T))
 
+
+
+# 1. Exploration 
+## 1.1. Check how many tRNA-synthetase genes they have in their library
+```{r}
 # Grab the tRNA-synthetases that are in the library
-trna_synths_in_library <- trna_synthase_genes[trna_synthase_genes$Gene.secondaryIdentifier %in% growth_agar$Sys.Name,]
+trna_synths_in_library <- synthetases[synthetases$Gene.secondaryIdentifier %in% growth_agar$Sys.Name,]
 trna_synths_in_library <- trna_synths_in_library[order(trna_synths_in_library$Gene.name),]
 
-# Add a column with the amino acid they load, need to do this manually bc nomenclature of the genes in Yeastmine is a mess lol
-#trna_synths_in_library$Gene.name
-trna_synths_in_library$amino_acid_loaded <- c("Alanine", "Cysteine", "Glutamine or glutamic acid", "Glycine", "Histidine", "Isoleucine", "Methionine", "Phenylalanine", "Phenylalanine", "Tyrosine", "Valine")
-temp <- amino_acids %>% 
-  select(-molecular_weight) %>%
-  rename(amino_acid_loaded = Name)
-trna_synths_in_library <- left_join(trna_synths_in_library, temp, by = "amino_acid_loaded")
-
-# Check, out of the tRNA genes that couldn't be KOd in the library, how many correspond to which amino acids - what defines this? Explore in next chunk
+# Check, out of the tRNA genes that couldn't be KOd in the tRNA KO library, how many correspond to which amino acids - what defines this? I EXPLORE THIS FURTHER IN 1.11. IN THE MAIN TRNA .RMD FILE
 sort(table(master_dataset$Isotype_from_anticodon[master_dataset$KOd == "No"]))
-
-# Remove unnecessary variables
-rm(temp)
 ```
 
-
-# 2. Explore correlation between the number of tRNA genes for a certain amino acid (or anticodon) that couldn't be KOd, and the number of genes with that amino acid/anticodon´+
+## 1.2. Check where these strains with TS alleles for tRNA synthetases are in the plates, and produce figures of the 384-well plates coloring by different things
+By where the available strains with a TS allele for a tRNA synthetase are in each plate
 ```{r}
-# Plots by anticodon
-master_by_anticodon <- master_dataset %>%
-  distinct(Anticodon, .keep_all = T)
-
-## Just the percentage of KOd genes per anticodon
-ggplot(data = master_by_anticodon, aes(x = Anticodon, y = Perc_KOd_genes_per_anticodon)) +
-  geom_point() +
-  theme_light() +
-  geom_text_repel(data = subset(master_by_anticodon, Perc_KOd_genes_per_anticodon < 0.7), aes(x = Anticodon, y = Perc_KOd_genes_per_anticodon, label = Anticodon)) +
-  theme(axis.text.x = element_blank()) +
-  labs(title = "% of tRNA-genes with each anticodon that were KOd") +
-  ylab("% of genes KOd")
-
-
-
-# Plots by amino acid - for some reason distinct() is not working???
-master_by_amino_acid <- master_dataset[!duplicated(master_dataset$Isotype_from_anticodon),]
-
-## Just the percentage of KOd genes per amino acid
-ggplot(data = master_by_amino_acid, aes(x = Isotype_from_anticodon, y = Perc_KOd_genes_per_amino_acid, col = Number_of_tRNAs_loading_this_aa)) +
-  geom_point() +
-  theme_light() +
-  geom_text_repel(data = subset(master_by_amino_acid, Perc_KOd_genes_per_amino_acid < 0.8), aes(x = Isotype_from_anticodon, y = Perc_KOd_genes_per_amino_acid, label = Isotype_from_anticodon)) +
-  theme(axis.text.x = element_blank()) +
-  xlab("Amino acid") +
-  ylab("% of genes KOd") +
-  labs(title = "% of tRNA-genes carrying each amino acid that were KOd",
-       col = "Number of tRNAs\nloading this aa")
-
-# How many tRNA genes are there for each amino acid?
-ggplot(data = master_by_amino_acid, aes(x = Isotype_from_anticodon, y = Number_of_tRNAs_loading_this_aa)) +
-  geom_point() +
-  theme_light() +
-  theme(axis.text.x = element_blank()) +
-  labs(title = "Number of tRNA genes carrying each amino acid") +
-  xlab("Amino acid") +
-  ylab("Number of genes") +
-  geom_text_repel(data = subset(master_by_amino_acid, Number_of_tRNAs_loading_this_aa < 6 | Number_of_tRNAs_loading_this_aa > 20), aes(x = Isotype_from_anticodon, y = Number_of_tRNAs_loading_this_aa, label = Isotype_from_anticodon))
+# For each 384-well plate I need to come up with a separate dataframe, with only the column with the appropriate well IDs, and another column I want to color the wells by
+for (i in 1:4) {
+  temp <- sample_layout %>%
+    filter(Plate384 == i) %>%
+    mutate(values = as.numeric(Synthetase == "Yes" & Available == "Yes")) %>%
+    dplyr::select(values, Well_ID_non_unique)
+  
+  raw_map(data = temp$values,
+          well = temp$Well_ID_non_unique,
+          plate = 384) +
+    ggtitle(glue("Plate {i} - tRNA synthetases TS alleles")) +
+    theme_dark() +
+    scale_fill_viridis() +
+    theme(axis.text=element_text(size=6))
+  
+  ggsave(paste(base_dir, "TSSC/Output/Plots/sample_layout/synthetases_plate_", i, ".png", sep=""))
+}
 ```
 
+## 1.3. Figure out which other strains to use for pilot
+It would be nice to be able to use all the other strains around the those with tRNA-synth ts-alleles in plate 4, I will check if they are evenly distributed across the growth in 22ºC vs. growth in 26ºC plot.
+That would be the strains in rows F and G of Plate 4! Let's have a look at them
+```{r}
+growth_agar <- growth_agar %>%
+  mutate(possible_selection = case_when(Plate384 == 4 & (Row384 == which(letters == "f")|Row384 == which(letters == "g")) ~ TRUE,
+                                        TRUE ~ FALSE))
 
-
-
-
-
+ggplot(data = growth_agar, aes(x = Avg_AUC_22, y = Avg_AUC_26, col = as.factor(possible_selection))) +
+  geom_point() +
+  geom_abline() +
+  labs(col = "Ratio 26ºC/22ºC") +
+  theme_light() +
+  xlab("AUC at 22ºC") +
+  ylab("AUC at 26ºC")
+```
 
 
 
