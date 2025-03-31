@@ -13,8 +13,16 @@ knitr::opts_chunk$set(echo = TRUE)
 We received some preliminary growth data for the strains in the library at 22ºC and 26ºC, both as AUC of growth curves and as raw data. 
 Here I analyze both of them and compare the results. The goal of this was to figure out which temperatures would be optimal for the culture. 
 
+Later, they provided us with fluorescence data (RFP/GFP) for heterozygous versions of the TS strains, where the WT allele was labelled in one color and the TS one with another, and then they were cultured, I assume at different temperatures for certain times (I will find out below). Below the initial analysis described in the lines above, I analyze this second dataset. 
 
 
+
+
+
+
+###############################################################################################################################################
+########################################################### Preliminary growth data ###########################################################
+###############################################################################################################################################
 
 
 
@@ -436,26 +444,6 @@ sum(weird_strains$TS.allele %in% li_1$TS.allele)
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 -------------------------------------------------------- With their raw growth data --------------------------------------------------------
 
 
@@ -623,6 +611,41 @@ ggplot(data = final_AUCs, aes(x = Avg_AUC_22, y = Avg_AUC_26, col = as.factor(pl
 
 
 
+
+
+
+
+###############################################################################################################################################
+############################################################## Fluorescence data ##############################################################
+###############################################################################################################################################
+
+
+# 0. Set up
+## 0.1. Load libraries
+```{r}
+library(xlsx)
+library(data.table)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+## 0.2. Set up environment
+```{r}
+working_from = "home"
+
+if (working_from == "home") {
+  base_dir = "/home/alvaro/MyStuff/TSSc/"
+} else
+if (working_from == "charite") {
+  base_dir = "C:/MyStuff/TSSC/"
+}
+```
+
+## 0.3. Load data
+```{r}
+
+```
 
 
 
