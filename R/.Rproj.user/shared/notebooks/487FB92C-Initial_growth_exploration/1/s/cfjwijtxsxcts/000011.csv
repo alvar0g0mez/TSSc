@@ -1,8 +1,0 @@
-"0",""
-"0","# Overlayed histogram colored by Platenum"
-"0","ggplot(data = growth_liquid_1_10) +"
-"0","  geom_histogram(aes(x = Avg_AUC_22, fill = Platenum, group = Platenum), alpha = 0.4, position=""identity"") +"
-"0","  geom_histogram(aes(x = Avg_AUC_26, fill = Platenum, group = Platenum), alpha = 0.4, position=""identity"") +"
-"0","  theme_light() +"
-"0","  ylab(""Count"") +"
-"0","  xlab(""Average AUC across biological replicates"")"

@@ -1,2 +1,0 @@
-"0","growth_agar <- as.data.frame(fread(paste(base_dir, ""Data/Growth/Mine/Processed_by_them/growth_agar.tsv"", sep="""")))"
-"0","growth_liquid <- as.data.frame(fread(paste(base_dir, ""Data/Growth/Mine/Processed_by_them/growth_liquid.tsv"", sep="""")))"

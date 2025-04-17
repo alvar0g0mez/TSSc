@@ -1,0 +1,234 @@
+---
+title: "fluorescence_data_analysis"
+author: "Álvaro Gómez Pérez"
+date: "2025-04-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+Libraries
+```{r}
+library(dplyr)
+library(data.table)
+library(tidyr)
+library(ggplot2)
+```
+
+
+Set up
+```{r}
+# Set up environment
+working_from = "charite"
+
+if (working_from == "home") {
+  base_dir = "/home/alvaro/MyStuff/TSSc/"
+} else
+  if (working_from == "charite") {
+    base_dir = "C:/MyStuff/TSSC/"
+  }
+```
+
+
+Load data
+```{r}
+raw_1 <- as.data.frame(fread(paste(base_dir, "Data/Boone_lab/Fluorescence/raw_1.csv", sep = "")))
+raw_2 <- as.data.frame(fread(paste(base_dir, "Data/Boone_lab/Fluorescence/raw_2.csv", sep = "")))
+raw_3 <- as.data.frame(fread(paste(base_dir, "Data/Boone_lab/Fluorescence/raw_3.csv", sep = "")))
+
+# Put together replicates
+full_fluorescence <- rbind(rbind(raw_1, raw_2), raw_3)
+```
+
+
+
+
+
+Some initial naive plots, I'll organize this afterwards
+
+Histograms
+```{r}
+# Rep 1, all timepoints - full range
+ggplot(data = raw_1, aes(x = `het:hom_mNG:mScar_ratio`)) +
+  geom_histogram(binwidth = 1) +
+  theme_light() +
+  labs(title = "Histogram of final ratio - all timepoints",
+       subtitle = "Replicate 1")
+
+# Rep 1, all timepoints - 0 to 15
+ggplot(data = raw_1, aes(x = `het:hom_mNG:mScar_ratio`)) +
+  geom_histogram(binwidth = 0.1, col = "black", fill = "grey") +
+  theme_light() +
+  coord_cartesian(xlim = c(0, 15)) +
+  labs(title = "Histogram of final ratio - all timepoints",
+       subtitle = "Replicate 1")
+
+# Rep 1, all timepoints, log2
+ggplot(data = raw_1, aes(x = log2(`het:hom_mNG:mScar_ratio`))) +
+  geom_histogram(binwidth = 1) +
+  theme_light() +
+  coord_cartesian(xlim = c(-12, 12)) +
+  labs(title = "Histogram of final ratio - all timepoints",
+       subtitle = "Replicate 1")
+
+# Rep 1, time = 0, log2
+ggplot(data = subset(raw_1, TimeAt37 == 0), aes(x = log2(`het:hom_mNG:mScar_ratio`))) +
+  geom_histogram(binwidth = 1) +
+  theme_light() +
+  coord_cartesian(xlim = c(-12, 12),
+                  ylim = c(0, 500)) +
+  labs(title = "Histogram of final ratio - 0h",
+       subtitle = "Replicate 1")
+
+# Rep 1, time = 12, log2
+ggplot(data = subset(raw_1, TimeAt37 == 12), aes(x = log2(`het:hom_mNG:mScar_ratio`))) +
+  geom_histogram(binwidth = 1) +
+  theme_light() +
+  coord_cartesian(xlim = c(-12, 12),
+                  ylim = c(0, 500)) +
+  labs(title = "Histogram of final ratio - 12h",
+       subtitle = "Replicate 1")
+```
+
+
+
+Boxplots - replicate 1
+```{r}
+# Final ratio, all timepoints
+ggplot(data = raw_1, aes(x = as.factor(TimeAt37), y = log2(`het:hom_mNG:mScar_ratio`), group = TimeAt37)) +
+  geom_boxplot() +
+  theme_light() + 
+  xlab("Time at 37ºC") +
+  ylab("log2(het:hom_mNG:mScar_ratio)") +
+  labs(title = "Boxplots for the final ratio at all timepoints",
+       subtitle = "Replicate 1")
+
+# Heterozygous ratio, all timepoints
+ggplot(data = subset(raw_1, Status == "Heterozygous"), aes(x = as.factor(TimeAt37), y = log2(`average_mNG:mScar_ratio`), group = TimeAt37)) +
+  geom_boxplot() +
+  theme_light() + 
+  xlab("Time at 37ºC") +
+  ylab("log2(het:hom_mNG:mScar_ratio)") +
+  labs(title = "Boxplots for the final ratio at all timepoints",
+       subtitle = "Replicate 1")
+
+# Heterozygous mNG, all timepoints
+ggplot(data = subset(raw_1, Status == "Heterozygous"), aes(x = as.factor(TimeAt37), y = log2(average_intensity_mNG), group = TimeAt37)) +
+  geom_boxplot() +
+  theme_light() + 
+  xlab("Time at 37ºC") +
+  ylab("log2(het:hom_mNG:mScar_ratio)") +
+  labs(title = "Boxplots for the final ratio at all timepoints",
+       subtitle = "Replicate 1")
+```
+
+Boxplots - all replicates
+```{r}
+# Final ratio, all timepoints
+ggplot(data = full_fluorescence, aes(x = as.factor(TimeAt37), y = log2(`het:hom_mNG:mScar_ratio`), group = TimeAt37)) +
+  geom_boxplot() +
+  theme_light() + 
+  xlab("Time at 37ºC") +
+  ylab("log2(het:hom_mNG:mScar_ratio)") +
+  labs(title = "Boxplots for the final ratio at all timepoints",
+       subtitle = "All replicates")
+
+# Heterozygous ratio, all timepoints
+ggplot(data = subset(full_fluorescence, Status == "Heterozygous"), aes(x = as.factor(TimeAt37), y = log2(`average_mNG:mScar_ratio`), group = TimeAt37)) +
+  geom_boxplot() +
+  theme_light() + 
+  xlab("Time at 37ºC") +
+  ylab("average_mNG:mScar_ratio") +
+  labs(title = "Boxplots for the heterozygous ratio at all timepoints",
+       subtitle = "All replicates")
+
+# Heterozygous mNG, all timepoints
+ggplot(data = subset(full_fluorescence, Status == "Heterozygous"), aes(x = as.factor(TimeAt37), y = log2(average_intensity_mNG), group = TimeAt37)) +
+  geom_boxplot() +
+  theme_light() + 
+  xlab("Time at 37ºC") +
+  ylab("Average mNG intensity") +
+  labs(title = "Boxplots for heterozygous mNG at all timepoints",
+       subtitle = "All replicates")
+```
+
+
+Let me do some statistical testing because these boxplots don't seem to change along time 
+```{r}
+# Final ratio, 0h vs. 12h across all replicates
+x <- full_fluorescence$`het:hom_mNG:mScar_ratio`[full_fluorescence$TimeAt37 == 0 & is.finite(full_fluorescence$`het:hom_mNG:mScar_ratio`)]
+y <- full_fluorescence$`het:hom_mNG:mScar_ratio`[full_fluorescence$TimeAt37 == 12 & is.finite(full_fluorescence$`het:hom_mNG:mScar_ratio`)]
+
+test <- wilcox.test(x, y)
+test
+median(x, na.rm = T) - median(y, na.rm = T)
+
+
+
+```
+--> So, there is statistical significance for the 0h and 12h timepoints being different, even though the boxplots don't show it. I guess this is partly because we have so many data points? At least it should not be due to the super large values in at least one of the groups, since WMW is rank based, right? So that is something. Still, I don't know how to evaluate the effect size of the difference between the 2 groups, does the difference between medians make sense? Because the difference between means is so biased by these huge values at 0h
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Quick check tRNA_KOs ODs - delete - or cut and paste to the appropriate file in that project
+```{r}
+ODs <- as.data.frame(fread("C:/MyStuff/tRNA_KOs/Data/OD_processed.csv"))
+
+ggplot(data = ODs, aes(x = OD_processed)) +
+  geom_histogram(binwidth = 0.05, col = "black", fill = "grey") +
+  theme_light() +
+  xlab("OD") +
+  ylab("Count")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

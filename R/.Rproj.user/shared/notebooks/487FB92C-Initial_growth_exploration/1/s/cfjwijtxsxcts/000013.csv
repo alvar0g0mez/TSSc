@@ -1,7 +1,0 @@
-"0",""
-"0","# Get a histogram of the difference"
-"0","ggplot(data = growth_liquid_1_10, aes(x = Avg_AUC_26 - Avg_AUC_22)) +"
-"0","  geom_histogram(col = ""black"", fill = ""grey"") +"
-"0","  theme_light() +"
-"0","  ylab(""Count"") +"
-"0","  xlab(""Diff. in average AUC (26ºC - 22ºC)"")"
