@@ -36,20 +36,23 @@ if (working_from == "home") {
 
 Load data
 ```{r}
+# Fluorescence data
 raw_1 <- as.data.frame(fread(paste(base_dir, "Data/Boone_lab/Fluorescence/raw_1.csv", sep = "")))
 raw_2 <- as.data.frame(fread(paste(base_dir, "Data/Boone_lab/Fluorescence/raw_2.csv", sep = "")))
 raw_3 <- as.data.frame(fread(paste(base_dir, "Data/Boone_lab/Fluorescence/raw_3.csv", sep = "")))
 
-# Put together replicates
+## Put together replicates
 full_fluorescence <- rbind(rbind(raw_1, raw_2), raw_3)
+
+# tRNA synthetases data
+synthetases <- as.data.frame(fread(paste(base_dir, "Data/synthetases/trna_synthetases.csv", sep="")))
 ```
 
 
 
 
 
-Some initial naive plots, I'll organize this afterwards
-
+# 1. Some initial plots
 Histograms
 ```{r}
 # Rep 1, all timepoints - full range
@@ -95,7 +98,6 @@ ggplot(data = subset(raw_1, TimeAt37 == 12), aes(x = log2(`het:hom_mNG:mScar_rat
 ```
 
 
-
 Boxplots - replicate 1
 ```{r}
 # Final ratio, all timepoints
@@ -112,8 +114,8 @@ ggplot(data = subset(raw_1, Status == "Heterozygous"), aes(x = as.factor(TimeAt3
   geom_boxplot() +
   theme_light() + 
   xlab("Time at 37ºC") +
-  ylab("log2(het:hom_mNG:mScar_ratio)") +
-  labs(title = "Boxplots for the final ratio at all timepoints",
+  ylab("log2(average_mNG:mScar_ratio)") +
+  labs(title = "Boxplots for the non-normalized ratio at all timepoints",
        subtitle = "Replicate 1")
 
 # Heterozygous mNG, all timepoints
@@ -121,8 +123,17 @@ ggplot(data = subset(raw_1, Status == "Heterozygous"), aes(x = as.factor(TimeAt3
   geom_boxplot() +
   theme_light() + 
   xlab("Time at 37ºC") +
-  ylab("log2(het:hom_mNG:mScar_ratio)") +
-  labs(title = "Boxplots for the final ratio at all timepoints",
+  ylab("log2(mNG)") +
+  labs(title = "Boxplots for the mNG intensity",
+       subtitle = "Replicate 1")
+
+# Heterozygous mScarlet, all timepoints
+ggplot(data = subset(raw_1, Status == "Heterozygous"), aes(x = as.factor(TimeAt37), y = log2(average_intensity_mScar), group = TimeAt37)) +
+  geom_boxplot() +
+  theme_light() + 
+  xlab("Time at 37ºC") +
+  ylab("log2(mScarlet)") +
+  labs(title = "Boxplots for the mScarlet intensity",
        subtitle = "Replicate 1")
 ```
 
@@ -142,8 +153,8 @@ ggplot(data = subset(full_fluorescence, Status == "Heterozygous"), aes(x = as.fa
   geom_boxplot() +
   theme_light() + 
   xlab("Time at 37ºC") +
-  ylab("average_mNG:mScar_ratio") +
-  labs(title = "Boxplots for the heterozygous ratio at all timepoints",
+  ylab("log2(average_mNG:mScar_ratio)") +
+  labs(title = "Boxplots for the non-normalized ratio at all timepoints",
        subtitle = "All replicates")
 
 # Heterozygous mNG, all timepoints
@@ -151,8 +162,17 @@ ggplot(data = subset(full_fluorescence, Status == "Heterozygous"), aes(x = as.fa
   geom_boxplot() +
   theme_light() + 
   xlab("Time at 37ºC") +
-  ylab("Average mNG intensity") +
+  ylab("log2(mNG) intensity") +
   labs(title = "Boxplots for heterozygous mNG at all timepoints",
+       subtitle = "All replicates")
+
+# Heterozygous mScarlet, all timepoints
+ggplot(data = subset(full_fluorescence, Status == "Heterozygous"), aes(x = as.factor(TimeAt37), y = log2(average_intensity_mScar), group = TimeAt37)) +
+  geom_boxplot() +
+  theme_light() + 
+  xlab("Time at 37ºC") +
+  ylab("log2(mScarlet intensity)") +
+  labs(title = "Boxplots for heterozygous mScarlet at all timepoints",
        subtitle = "All replicates")
 ```
 
@@ -174,6 +194,34 @@ median(x, na.rm = T) - median(y, na.rm = T)
 
 
 
+
+# 2. Check tRNA synthetase ts-allele strains
+```{r}
+# Isolate fluorescence data for the synthetases and check for how many synthetases we have it
+fluorescence_synthetases <- full_fluorescence %>%
+  filter(Gene %in% synthetases$Gene.symbol)
+length(unique(fluorescence_synthetases$Gene))
+
+
+# Take the average across replicates
+test <- fluorescence_synthetases %>%
+  filter(`het:hom_mNG:mScar_ratio_status` == "mutant") %>%
+  group_by(Gene, Status, TimeAt37) %>%
+  summarise_at(vars(`het:hom_mNG:mScar_ratio`), list(average_ratio_across_replicates = mean))
+
+
+# Get spaghetti plots
+## Basic one
+ggplot(data = test, aes(x = TimeAt37, y = average_ratio_across_replicates, col = Gene)) +
+  geom_line(linewidth = 1) +
+  theme_light()
+
+## Zoom in to see the ones at the bottom
+ggplot(data = test, aes(x = TimeAt37, y = average_ratio_across_replicates, col = Gene)) +
+  geom_line(linewidth = 1) +
+  theme_light() +
+  coord_cartesian(ylim = c(0, 1.65))
+```
 
 
 
