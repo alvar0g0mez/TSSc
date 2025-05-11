@@ -23,7 +23,7 @@ library(ggplot2)
 Set up
 ```{r}
 # Set up environment
-working_from = "charite"
+working_from = "home"
 
 if (working_from == "home") {
   base_dir = "/home/alvaro/MyStuff/TSSc/"
@@ -97,7 +97,6 @@ ggplot(data = subset(raw_1, TimeAt37 == 12), aes(x = log2(`het:hom_mNG:mScar_rat
        subtitle = "Replicate 1")
 ```
 
-
 Boxplots - replicate 1
 ```{r}
 # Final ratio, all timepoints
@@ -137,7 +136,7 @@ ggplot(data = subset(raw_1, Status == "Heterozygous"), aes(x = as.factor(TimeAt3
        subtitle = "Replicate 1")
 ```
 
-Boxplots - all replicates
+Boxplots - all replicates - heterozygous
 ```{r}
 # Final ratio, all timepoints
 ggplot(data = full_fluorescence, aes(x = as.factor(TimeAt37), y = log2(`het:hom_mNG:mScar_ratio`), group = TimeAt37)) +
@@ -163,7 +162,7 @@ ggplot(data = subset(full_fluorescence, Status == "Heterozygous"), aes(x = as.fa
   theme_light() + 
   xlab("Time at 37ºC") +
   ylab("log2(mNG) intensity") +
-  labs(title = "Boxplots for heterozygous mNG at all timepoints",
+  labs(title = "Boxplots for homozygous mNG at all timepoints",
        subtitle = "All replicates")
 
 # Heterozygous mScarlet, all timepoints
@@ -172,8 +171,38 @@ ggplot(data = subset(full_fluorescence, Status == "Heterozygous"), aes(x = as.fa
   theme_light() + 
   xlab("Time at 37ºC") +
   ylab("log2(mScarlet intensity)") +
-  labs(title = "Boxplots for heterozygous mScarlet at all timepoints",
+  labs(title = "Boxplots for homozygous mScarlet at all timepoints",
        subtitle = "All replicates")
+```
+
+Boxplots - all replicates - homozygous
+```{r}
+# Homozygous ratio, all timepoints
+ggplot(data = subset(full_fluorescence, Status == "Homozygous"), aes(x = as.factor(TimeAt37), y = log2(`average_mNG:mScar_ratio`), group = TimeAt37)) +
+  geom_boxplot() +
+  theme_light() + 
+  xlab("Time at 37ºC") +
+  ylab("log2(average_mNG:mScar_ratio)") +
+  labs(title = "Boxplots for the homozygous ratio at all timepoints",
+       subtitle = "All replicates, homozygous WT strains only")
+
+# Homozygous mNG, all timepoints
+ggplot(data = subset(full_fluorescence, Status == "Homozygous"), aes(x = as.factor(TimeAt37), y = log2(average_intensity_mNG), group = TimeAt37)) +
+  geom_boxplot() +
+  theme_light() + 
+  xlab("Time at 37ºC") +
+  ylab("log2(mNG) intensity") +
+  labs(title = "Boxplots for homozygous mNG at all timepoints",
+       subtitle = "All replicates, homozygous WT strains only")
+
+# Homozygous mScarlet, all timepoints
+ggplot(data = subset(full_fluorescence, Status == "Homozygous"), aes(x = as.factor(TimeAt37), y = log2(average_intensity_mScar), group = TimeAt37)) +
+  geom_boxplot() +
+  theme_light() + 
+  xlab("Time at 37ºC") +
+  ylab("log2(mScarlet intensity)") +
+  labs(title = "Boxplots for homozygous mScarlet at all timepoints",
+       subtitle = "All replicates, homozygous WT strains only")
 ```
 
 
@@ -194,8 +223,59 @@ median(x, na.rm = T) - median(y, na.rm = T)
 
 
 
+# 2. Check if total_cell_count or undetectable_cells explain the ratio being constant
+Boxplots
+```{r}
+# Total cell count, all timepoints
+ggplot(data = full_fluorescence, aes(x = as.factor(TimeAt37), y = log2(total_cell_count), group = TimeAt37)) +
+  geom_boxplot() +
+  theme_light() + 
+  xlab("Time at 37ºC") +
+  ylab("log2(Total cell count)") +
+  labs(title = "Boxplots for the total cell count at all timepoints",
+       subtitle = "All replicates")
 
-# 2. Check tRNA synthetase ts-allele strains
+# Undetectable cells mNG, all timepoints
+ggplot(data = full_fluorescence, aes(x = as.factor(TimeAt37), y = log2(undetectable_cells_mNG), group = TimeAt37)) +
+  geom_boxplot() +
+  theme_light() + 
+  xlab("Time at 37ºC") +
+  ylab("log2(Undetectable cells mNG)") +
+  labs(title = "Boxplots for undetectable cells mNG at all timepoints",
+       subtitle = "All replicates")
+
+# Undetectable cells mScar, all timepoints
+ggplot(data = full_fluorescence, aes(x = as.factor(TimeAt37), y = log2(undetectable_cells_mScar), group = TimeAt37)) +
+  geom_boxplot() +
+  theme_light() + 
+  xlab("Time at 37ºC") +
+  ylab("log2(Undetectable cells mScar)") +
+  labs(title = "Boxplots for undetectable cells mScar at all timepoints",
+       subtitle = "All replicates")
+```
+
+Correlations
+```{r}
+# Final ratio vs. total cell count
+ggplot(data = full_fluorescence, aes(x = log2(total_cell_count), y = log2(`het:hom_mNG:mScar_ratio`), col = TimeAt37)) +
+  geom_point() +
+  theme_light() +
+  coord_cartesian(ylim = c(-25, 25))
+
+# Final ratio vs. undetectable cells mNG
+ggplot(data = full_fluorescence, aes(x = log2(undetectable_cells_mNG), y = log2(`het:hom_mNG:mScar_ratio`), col = TimeAt37)) +
+  geom_point() +
+  theme_light()
+
+# Final ratio vs. undetectable cells mScar
+ggplot(data = full_fluorescence, aes(x = log2(undetectable_cells_mScar), y = log2(`het:hom_mNG:mScar_ratio`), col = TimeAt37)) +
+  geom_point() +
+  theme_light()
+```
+
+
+
+# 3. Check tRNA synthetase ts-allele strains
 ```{r}
 # Isolate fluorescence data for the synthetases and check for how many synthetases we have it
 fluorescence_synthetases <- full_fluorescence %>%
@@ -214,16 +294,79 @@ test <- fluorescence_synthetases %>%
 ## Basic one
 ggplot(data = test, aes(x = TimeAt37, y = average_ratio_across_replicates, col = Gene)) +
   geom_line(linewidth = 1) +
-  theme_light()
+  theme_light() +
+  labs(title = "Normalized mNG/mScarlet for TS tRNA synthetase strains") +
+  xlab("Time at 37ºC") +
+  ylab("log2(het:hom_mNG:mScar_ratio)")
+  
 
 ## Zoom in to see the ones at the bottom
 ggplot(data = test, aes(x = TimeAt37, y = average_ratio_across_replicates, col = Gene)) +
   geom_line(linewidth = 1) +
   theme_light() +
-  coord_cartesian(ylim = c(0, 1.65))
+  coord_cartesian(ylim = c(0, 1.65)) +
+  labs(title = "Normalized mNG/mScarlet for TS tRNA synthetase strains",
+       subtitle = "Zoomed in") +
+  xlab("Time at 37ºC") +
+  ylab("log2(het:hom_mNG:mScar_ratio)")
+
+# Get a subset of the synthetase dataset for these ones, for a slide
+synths_temp <- synthetases %>%
+  filter(Gene.symbol %in% full_fluorescence$Gene) %>%
+  dplyr::select(Gene.name, Gene.symbol, Gene.secondaryIdentifier, mitochondrial, type, cofactor_or_enzyme)
 ```
 
 
+
+# 4. Filter strains, keeping those which follow the pattern we want (decreasing ratio)
+Filtering
+```{r}
+fluorescence_temp <- full_fluorescence %>%
+  filter(Status == "Heterozygous")
+strains <- unique(fluorescence_temp$Gene)
+
+strains_with_right_pattern <- c()
+
+for (gene in strains) {
+  temp <- fluorescence_temp %>%
+    filter(Gene == gene)
+  
+  if (length(unique(temp$TimeAt37)) == 7) {
+    if ((mean(temp$`het:hom_mNG:mScar_ratio`[temp$TimeAt37 == 0], na.rm = T) >= mean(temp$`het:hom_mNG:mScar_ratio`[temp$TimeAt37 == 4], na.rm = T)) &
+        (mean(temp$`het:hom_mNG:mScar_ratio`[temp$TimeAt37 == 4], na.rm = T) >= mean(temp$`het:hom_mNG:mScar_ratio`[temp$TimeAt37 == 8], na.rm = T)) &
+        (mean(temp$`het:hom_mNG:mScar_ratio`[temp$TimeAt37 == 8], na.rm = T) >= mean(temp$`het:hom_mNG:mScar_ratio`[temp$TimeAt37 == 12], na.rm = T))) {
+      strains_with_right_pattern <- c(strains_with_right_pattern, unique(temp$Gene))
+    }
+  }
+}
+
+fluorescence_filtered <- full_fluorescence %>%
+  filter(Gene %in% strains_with_right_pattern)
+```
+
+Plots
+```{r}
+# Final ratio, all timepoints
+ggplot(data = fluorescence_filtered, aes(x = as.factor(TimeAt37), y = log2(`het:hom_mNG:mScar_ratio`), group = TimeAt37)) +
+  geom_boxplot() +
+  theme_light() + 
+  xlab("Time at 37ºC") +
+  ylab("log2(het:hom_mNG:mScar_ratio)") +
+  labs(title = "Boxplots for the final ratio at all timepoints",
+       subtitle = "All replicates")
+
+# Spaghetti plot with these selected strains - need to average across replicates first - NEED TO FIX THIS
+fluorescence_filtered <- fluorescence_filtered %>%
+  group_by(Gene, Status, TimeAt37) %>%
+  summarise_at(vars(`het:hom_mNG:mScar_ratio`), list(average_ratio_across_replicates = mean))
+
+ggplot(data = fluorescence_filtered, aes(x = TimeAt37, y = average_ratio_across_replicates, col = Gene)) +
+  geom_line(linewidth = 1) +
+  theme_light() +
+  labs(title = "Normalized mNG/mScarlet for selected strains") +
+  xlab("Time at 37ºC") +
+  ylab("log2(het:hom_mNG:mScar_ratio)")
+```
 
 
 
