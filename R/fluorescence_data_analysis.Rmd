@@ -23,7 +23,7 @@ library(ggplot2)
 Set up
 ```{r}
 # Set up environment
-working_from = "home"
+working_from = "charite"
 
 if (working_from == "home") {
   base_dir = "/home/alvaro/MyStuff/TSSc/"
