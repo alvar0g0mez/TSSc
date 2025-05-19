@@ -157,6 +157,22 @@ write.xlsx(x = strains_for_pilot_final,
 ```
 
 
+Quick fix for presentation with Markus
+```{r}
+strains_for_pilot_final <- strains_for_pilot_final[1:12,]
+
+# Grab 4 random strains
+random_strains <- sample_layout %>%
+  filter(Available =="Yes")
+bool <- sample(nrow(random_strains), 4)
+random_strains <- random_strains[bool, ] 
+random_strains <- random_strains %>%
+  dplyr::select(-c(SB.notes, Well_ID_non_unique))
+
+
+strains_for_pilot_final <- rbind(strains_for_pilot_final, random_strains)
+```
+
 
 
 

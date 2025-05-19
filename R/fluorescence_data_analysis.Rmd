@@ -235,6 +235,16 @@ ggplot(data = full_fluorescence, aes(x = as.factor(TimeAt37), y = log2(total_cel
   labs(title = "Boxplots for the total cell count at all timepoints",
        subtitle = "All replicates")
 
+# Total cell count, all timepoints - group by homozygous or heterozygous
+ggplot(data = full_fluorescence, aes(x = as.factor(TimeAt37), y = log2(total_cell_count), fill = as.factor(Status))) +
+  geom_boxplot() +
+  theme_light() + 
+  xlab("Time at 37ºC") +
+  ylab("log2(Total cell count)") +
+  labs(title = "Boxplots for the total cell count at all timepoints",
+       subtitle = "All replicates",
+       fill = "Strain type")
+
 # Undetectable cells mNG, all timepoints
 ggplot(data = full_fluorescence, aes(x = as.factor(TimeAt37), y = log2(undetectable_cells_mNG), group = TimeAt37)) +
   geom_boxplot() +
