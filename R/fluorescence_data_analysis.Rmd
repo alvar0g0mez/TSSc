@@ -53,6 +53,7 @@ synthetases <- as.data.frame(fread(paste(base_dir, "Data/synthetases/trna_synthe
 
 
 # 1. Some initial plots
+## 1.1. With the ratio as normalized by them, directly
 Histograms
 ```{r}
 # Rep 1, all timepoints - full range
@@ -205,7 +206,6 @@ ggplot(data = subset(full_fluorescence, Status == "Homozygous"), aes(x = as.fact
        subtitle = "All replicates, homozygous WT strains only")
 ```
 
-
 Let me do some statistical testing because these boxplots don't seem to change along time 
 ```{r}
 # Final ratio, 0h vs. 12h across all replicates
@@ -220,6 +220,74 @@ median(x, na.rm = T) - median(y, na.rm = T)
 
 ```
 --> So, there is statistical significance for the 0h and 12h timepoints being different, even though the boxplots don't show it. I guess this is partly because we have so many data points? At least it should not be due to the super large values in at least one of the groups, since WMW is rank based, right? So that is something. Still, I don't know how to evaluate the effect size of the difference between the 2 groups, does the difference between medians make sense? Because the difference between means is so biased by these huge values at 0h
+
+
+## 1.2. Repeat some of these plots using the ratio normalized to time 0
+First of all look at the distribution of this normalized ratio and fix it if necessary - remove those with too high values for the ratio normalized to time 0, this should be below 1 in heterozygous strains, and around 1 in homozygous ones! Regardless of the temperature. 
+```{r}
+ggplot(data = full_fluorescence, aes(x = log2(ratio_norm_to_t0))) +
+  geom_histogram() +
+  theme_light()
+
+# For now let's remove any with values over 3 - this is what Johannes talked about that most of these values are likely pure fantasy, from the machine making wrong measurements and then the ratios and corrections expanding on these errors
+full_fluorescence <- full_fluorescence %>%
+  filter(ratio_norm_to_t0 <= 3)
+```
+
+Boxplots - all replicates - heterozygous
+```{r}
+# Final ratio, all timepoints
+ggplot(data = full_fluorescence, aes(x = as.factor(TimeAt37), y = log2(`het:hom_mNG:mScar_ratio`), fill = as.factor(`het:hom_mNG:mScar_ratio_status`))) +
+  geom_boxplot() +
+  theme_light() + 
+  xlab("Time at 37ºC") +
+  ylab("log2(het:hom_mNG:mScar_ratio)") +
+  labs(title = "Boxplots for the final ratio at all timepoints",
+       subtitle = "All replicates",
+       fill = "Strain type")
+
+# Final ratio noramlized to time 0, all timepoints
+ggplot(data = full_fluorescence, aes(x = as.factor(TimeAt37), y = ratio_norm_to_t0, fill = as.factor(`het:hom_mNG:mScar_ratio_status`))) +
+  geom_boxplot() +
+  theme_light() + 
+  xlab("Time at 37ºC") +
+  ylab("log2(het:hom_mNG:mScar_ratio)") +
+  labs(title = "Boxplots for the final ratio normalized to T0",
+       subtitle = "All replicates, at all timepoints",
+       fill = "Strain type") +
+  coord_cartesian(ylim = c(-0.1, 3.1))
+
+# Heterozygous ratio, all timepoints
+ggplot(data = subset(full_fluorescence, Status == "Heterozygous"), aes(x = as.factor(TimeAt37), y = log2(`average_mNG:mScar_ratio`), group = TimeAt37)) +
+  geom_boxplot() +
+  theme_light() + 
+  xlab("Time at 37ºC") +
+  ylab("log2(average_mNG:mScar_ratio)") +
+  labs(title = "Boxplots for the non-normalized ratio at all timepoints",
+       subtitle = "All replicates")
+
+# Heterozygous mNG, all timepoints
+ggplot(data = subset(full_fluorescence, Status == "Heterozygous"), aes(x = as.factor(TimeAt37), y = log2(average_intensity_mNG), group = TimeAt37)) +
+  geom_boxplot() +
+  theme_light() + 
+  xlab("Time at 37ºC") +
+  ylab("log2(mNG) intensity") +
+  labs(title = "Boxplots for homozygous mNG at all timepoints",
+       subtitle = "All replicates")
+
+# Heterozygous mScarlet, all timepoints
+ggplot(data = subset(full_fluorescence, Status == "Heterozygous"), aes(x = as.factor(TimeAt37), y = log2(average_intensity_mScar), group = TimeAt37)) +
+  geom_boxplot() +
+  theme_light() + 
+  xlab("Time at 37ºC") +
+  ylab("log2(mScarlet intensity)") +
+  labs(title = "Boxplots for homozygous mScarlet at all timepoints",
+       subtitle = "All replicates")
+```
+
+
+
+
 
 
 
@@ -380,6 +448,10 @@ ggplot(data = fluorescence_filtered, aes(x = TimeAt37, y = average_ratio_across_
 
 
 
+```{r}
+check <- full_fluorescence %>%
+  filter(TimeAt37 == 0)
+```
 
 
 
