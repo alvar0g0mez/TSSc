@@ -17,6 +17,7 @@ library(dplyr)
 library(data.table)
 library(tidyr)
 library(ggplot2)
+library(readxl)
 ```
 
 
@@ -453,6 +454,56 @@ check <- full_fluorescence %>%
   filter(TimeAt37 == 0)
 ```
 
+
+
+
+
+
+# 5. Look at Kyle's fitness data for this strains
+This is basically AUCs averaged over a few replicates for:
+    - A strain with a certain TS allele
+    - A WT strain
+And they calculated the ratio between their AUCs. 
+Only thing I don't really get is that there are seemingly different types of strains: 
+    - TSV8: "Untagged parental strain library" - no idea wtf that means - ohhh okay, the strain with the TS allele but no tag
+    - SWAT: 
+    - mNG: Well I can only assume it's the TS strain where the TS allele is tagged with mNG
+
+Load and prepare data
+```{r}
+fitness_data <- read_xlsx(paste(base_dir, "Data/Boone_lab/Fluorescence/Kyle_fitness_data_mutant_vs_WT-mNG_AUC_combinedReps.xlsx", sep=""), sheet = 1)
+
+# Modified version of the data so I can get the plot I want
+df_1 <- fitness_data %>%
+  dplyr::select(orf_type, AUC_Ratio_WT_mean) %>%
+  dplyr::mutate(Strain_type = "WT",
+                tag_type_on_ts_allele = case_when(orf_type == "SWAT" ~ "SWAT",
+                                                  orf_type == "mNG" ~ "mNG",
+                                                  orf_type == "TSV8" ~ "None")) %>%
+  dplyr::rename(AUC = AUC_Ratio_WT_mean)
+df_2 <- fitness_data %>%
+  dplyr::select(orf_type, AUC_Ratio_mutant_mean) %>%
+  dplyr::mutate(Strain_type = "Mutant",
+                tag_type_on_ts_allele = case_when(orf_type == "SWAT" ~ "SWAT",
+                                                  orf_type == "mNG" ~ "mNG",
+                                                  orf_type == "TSV8" ~ "None")) %>%
+  dplyr::rename(AUC = AUC_Ratio_mutant_mean)
+ploting_df <- rbind(df_1, df_2)
+```
+
+Plot
+```{r}
+ggplot(data = ploting_df, aes(x = tag_type_on_ts_allele, y = AUC, fill = Strain_type)) +
+  geom_boxplot() +
+  theme_light() +
+  xlab("Tag on TS-allele") +
+  labs(title = "Growth of TS-strains with different labels on the TS-allele",
+       subtitle = "Each with its correspondent WTs (where one WT allele was tagged with the same label??)\n
+       wait lol actually these are not AUCs, they are the ratio between the AUC at 37ºC and at 26ºC!\n
+       it does say in the data descript. technically that all WTs were labelled with mNG, but that's\n
+       probably not the case? Maybe write a quick email to Kyle about it",
+       fill = "Strain type")
+```
 
 
 
