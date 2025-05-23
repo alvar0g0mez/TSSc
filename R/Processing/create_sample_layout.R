@@ -26,7 +26,7 @@ library(data.table)
 growth_agar <- as.data.frame(fread(paste(base_dir, "TSSC/Data/Boone_lab/Growth/Mine/Processed_by_them/growth_agar.tsv", sep="")))
 sick_strains_when_sent <- as.data.frame(read.xlsx(paste(base_dir, "TSSC/Data/Boone_lab/Sick_strains/20250131_TSV8-coordinates_very_sick_strains.xlsx", sep=""), 2))
 no_growth_after_pinning <- as.data.frame(read.xlsx(paste(base_dir, "TSSC/Data/Boone_lab/Sick_strains/20250131_TSV8-coordinates_very_sick_strains.xlsx", sep=""), 3))
-synthetases <- as.data.frame(fread("C:/MyStuff/tRNA_KOs/Data/trna_synthetases.csv"))
+synthetases <- as.data.frame(fread(paste(base_dir, "TSSC/Data/synthetases/trna_synthetases.csv", sep="")))
 
 
 # Growth agar is just as I got it from them
@@ -73,3 +73,9 @@ sample_layout <- left_join(sample_layout, yeastmine, by = "Sys.Name")
 # 4. Save this dataframe 
 fwrite(sample_layout, paste(base_dir, "TSSC/Data/Boone_lab/sample_layout.csv", sep=""))
 
+
+
+
+
+# Clean up environment
+rm(list = ls())
