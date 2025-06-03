@@ -1,0 +1,165 @@
+---
+title: "initial_growth_curves_tRNA_synthetases_Wenxi"
+output: html_document
+date: "2025-03-06"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Libraries
+```{r}
+library(xlsx)
+library(data.table)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggrepel)
+library(stringr)
+library(glue)
+library(viridis)
+library(platetools)
+set.seed(2025)
+```
+
+
+
+
+# 0. Set up
+## 0.1. Set up directory
+```{r}
+working_from = "charite"
+
+if (working_from == "home") {
+  base_dir = "/home/alvaro/MyStuff/"
+} else
+  if (working_from == "charite") {
+    base_dir = "C:/MyStuff/"
+  }
+```
+
+## 0.2. Load and pre-process data
+```{r}
+# Growth data at the different temperatures
+growth_26 <- read.xlsx(file = paste(base_dir, "/TSSC/Data/pilot/pre_test_growth_curves/20250530-26C.xlsx", sep=""), sheetIndex = 1) %>%
+  dplyr::rename(Temperature = T..600)
+growth_30 <- read.xlsx(file = paste(base_dir, "/TSSC/Data/pilot/pre_test_growth_curves/20250529-30C.xlsx", sep=""), sheetIndex = 1) %>%
+  dplyr::rename(Temperature = T..600)
+growth_34 <- read.xlsx(file = paste(base_dir, "/TSSC/Data/pilot/pre_test_growth_curves/20250602-34C.xlsx", sep=""), sheetIndex = 1) %>%
+  dplyr::rename(Time = Time..s.,
+                Temperature = Temp....C.) %>%
+  dplyr::select(-Cycle.Nr.)
+growth_37 <- read.xlsx(file = paste(base_dir, "/TSSC/Data/pilot/pre_test_growth_curves/20250602-37C.xlsx", sep=""), sheetIndex = 1) %>%
+  dplyr::rename(Time = Time..s.,
+                Temperature = Temp....C.) %>%
+  dplyr::select(-Cycle.Nr.)
+growth_37 <- na.omit(growth_37)                     # IDK WHY THIS ONE COMES WITH A FEW NA ROWS AT THE BOTTOM :(
+
+# In the 30ºC dataset, row D in the plate was not left emtpy, so I'm going to change the IDs so that: 
+#   - row D in the plate is now row E in my dataset
+#   - row E in the plate is now row F in my dataset
+#   - row F in the plate is now row G in my dataset
+#   - row G in the plate (empty) is now row D in my dataset
+# SO REMEMBER THAT LABELS IN THE ANALYSIS FOR ROWS FROM D ARE CHANGED HERE!
+new_colnames <- c("Time", "Temperature",
+                  paste("A", seq(1, 12, 1), sep = ""),
+                  paste("B", seq(1, 12, 1), sep = ""), 
+                  paste("C", seq(1, 12, 1), sep = ""), 
+                  paste("E", seq(1, 12, 1), sep = ""), 
+                  paste("F", seq(1, 12, 1), sep = ""),
+                  paste("G", seq(1, 12, 1), sep = ""),
+                  paste("D", seq(1, 12, 1), sep = ""),
+                  paste("H", seq(1, 12, 1), sep = ""))
+colnames(growth_30) <- new_colnames
+
+# Sample IDs - replicate it a couple times changing IDs, since the samples in wells A, B and C are triplicates of the same sample, and the same for E, F, G
+sample_ids <- read.xlsx(file = paste(base_dir, "/TSSC/Data/pilot/pre_test_growth_curves/strains_for_pilot.xlsx", sep=""), sheetIndex = 1) %>%
+  dplyr::select(GC96, Sys.Name, Std.Name, TS.allele, Lab.ID, Synthetase, Gene.name, Status) %>%
+  dplyr::mutate(Sample.ID = paste(Sys.Name, "_1", sep=""))
+sample_ids_2 <- sample_ids %>%
+  dplyr::mutate(GC96 = case_when(grepl("A", GC96) ~ str_replace(GC96, "A", "B"),
+                                 grepl("E", GC96) ~ str_replace(GC96, "E", "F")),
+                Sample.ID = paste(Sys.Name, "_2", sep=""))
+sample_ids_3 <- sample_ids %>%
+  dplyr::mutate(GC96 = case_when(grepl("A", GC96) ~ str_replace(GC96, "A", "C"),
+                                 grepl("E", GC96) ~ str_replace(GC96, "E", "G")),
+                Sample.ID = paste(Sys.Name, "_3", sep=""))
+
+sample_ids <- rbind(rbind(sample_ids, sample_ids_2), sample_ids_3)
+
+# Set new column names, take averages of the 3 replicates, set to long format and put all temperatures together --> ready to plot!
+## Set new colnames
+function_to_set_new_colnames <- function(df) {
+  old_colnames <- data.frame(colnames(df)[3:nrow(df)])
+  colnames(old_colnames) <- c("GC96")
+  temp_ids <- sample_ids %>%
+    dplyr::select(GC96, Sample.ID)
+  old_colnames <- left_join(old_colnames, temp_ids, by = "GC96")
+  new_colnames <- c("Time", "Temperature", as.character(old_colnames$Sample.ID))
+  
+  colnames(df) <- new_colnames
+  return(df)
+}
+growth_26 <- function_to_set_new_colnames(growth_26)
+growth_30 <- function_to_set_new_colnames(growth_30)
+growth_34 <- function_to_set_new_colnames(growth_34)
+growth_37 <- function_to_set_new_colnames(growth_37)
+
+## Take averages
+# Iterate over datasets
+# For each of them, iterate over the strains, getting their averages and creating a new column for each of them
+# Probably as indicated here: https://www.statology.org/dplyr-mean-for-multiple-columns/
+```
+
+
+
+
+# 1. Initial checks - how stable was the temperature along each of the cultures?
+```{r}
+# First two temperatures were in one incubator, next two in another one, should check the names and put them somewhere in the graph
+# They should be in the second sheet of each of these Excel files
+ggplot() +
+  geom_line(data = growth_26, aes(x = Time, y = T..600), col = "darkgreen", linewidth = 1) +
+  geom_line(data = growth_30, aes(x = Time, y = T..600), col = "blue", linewidth = 1) +
+  geom_line(data = growth_34, aes(x = Time..s., y = Temp....C.), col = "purple", linewidth = 1) +
+  geom_line(data = growth_37, aes(x = Time..s., y = Temp....C.), col = "orange", linewidth = 1) +
+  geom_hline(yintercept = 26, col = "black") +
+  geom_hline(yintercept = 30, col = "black") +
+  geom_hline(yintercept = 34, col = "black") +
+  geom_hline(yintercept = 37, col = "black") +
+  theme_light() +
+  xlab("Time (s)") +
+  ylab("Temperature") +
+  labs(title = "How well did the incubators maintain their assigned temperature?")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
