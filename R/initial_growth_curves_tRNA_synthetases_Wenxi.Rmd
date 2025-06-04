@@ -30,7 +30,7 @@ set.seed(2025)
 # 0. Set up
 ## 0.1. Set up directory
 ```{r}
-working_from = "charite"
+working_from = "home"
 
 if (working_from == "home") {
   base_dir = "/home/alvaro/MyStuff/"
@@ -51,6 +51,7 @@ growth_34 <- read.xlsx(file = paste(base_dir, "/TSSC/Data/pilot/pre_test_growth_
   dplyr::rename(Time = Time..s.,
                 Temperature = Temp....C.) %>%
   dplyr::select(-Cycle.Nr.)
+growth_34 <- na.omit(growth_34)                    # IDK WHY THIS ONE COMES WITH A FEW NA ROWS AT THE BOTTOM :(
 growth_37 <- read.xlsx(file = paste(base_dir, "/TSSC/Data/pilot/pre_test_growth_curves/20250602-37C.xlsx", sep=""), sheetIndex = 1) %>%
   dplyr::rename(Time = Time..s.,
                 Temperature = Temp....C.) %>%
@@ -89,10 +90,37 @@ sample_ids_3 <- sample_ids %>%
 
 sample_ids <- rbind(rbind(sample_ids, sample_ids_2), sample_ids_3)
 
+# Need to add rows for the empty wells, otherwise I get an error later...
+d_sample_ids <- data.frame(c(paste("D", seq(1, 12, 1), sep="")),
+                           rep("Empty", 12),
+                           rep("Empty", 12),
+                           rep("Empty", 12),
+                           rep("Empty", 12),
+                           rep("Empty", 12),
+                           rep("Empty", 12),
+                           rep("Empty", 12),
+                           paste("Empty_", seq(1, 12, 1), sep=""))
+colnames(d_sample_ids) <- colnames(sample_ids)
+
+h_sample_ids <- data.frame(c(paste("H", seq(1, 12, 1), sep="")),
+                           rep("Empty", 12),
+                           rep("Empty", 12),
+                           rep("Empty", 12),
+                           rep("Empty", 12),
+                           rep("Empty", 12),
+                           rep("Empty", 12),
+                           rep("Empty", 12),
+                           paste("Empty_", seq(13, 24, 1), sep=""))
+colnames(h_sample_ids) <- colnames(sample_ids)
+
+sample_ids <- rbind(rbind(sample_ids, d_sample_ids), h_sample_ids)
+
+rm(sample_ids_2, sample_ids_3, d_sample_ids, h_sample_ids)
+
 # Set new column names, take averages of the 3 replicates, set to long format and put all temperatures together --> ready to plot!
 ## Set new colnames
 function_to_set_new_colnames <- function(df) {
-  old_colnames <- data.frame(colnames(df)[3:nrow(df)])
+  old_colnames <- data.frame(colnames(df)[3:ncol(df)])
   colnames(old_colnames) <- c("GC96")
   temp_ids <- sample_ids %>%
     dplyr::select(GC96, Sample.ID)
@@ -107,10 +135,56 @@ growth_30 <- function_to_set_new_colnames(growth_30)
 growth_34 <- function_to_set_new_colnames(growth_34)
 growth_37 <- function_to_set_new_colnames(growth_37)
 
+
+## Normalize to time = 0 - NOT DOING THIS FOR NOW, PROBABLY IMPLEMENT IT LATER, REMOVE THE FIRST 2 COLS AND THEN USE APPLY?
+
+
+
 ## Take averages
 # Iterate over datasets
 # For each of them, iterate over the strains, getting their averages and creating a new column for each of them
 # Probably as indicated here: https://www.statology.org/dplyr-mean-for-multiple-columns/
+strains <- unique(sample_ids$Sys.Name)
+function_to_get_means_across_replicates <- function(df) {
+  # Come up with the average columns
+  for (i in 1:length(strains)) {
+    strain <- strains[i]
+    df <- df %>%
+      rowwise() %>%
+      dplyr::mutate("{paste0(strain)}" := mean(c_across(contains(strain))), .after = Temperature)
+  }
+  
+  # Remove all other columns
+  df <- df %>%
+    dplyr::select(Time, Temperature, any_of(strains))
+  
+  # Return the finished dataframe
+  return(df)
+}
+
+growth_26_avg <- function_to_get_means_across_replicates(growth_26)
+growth_30_avg <- function_to_get_means_across_replicates(growth_30)
+growth_34_avg <- function_to_get_means_across_replicates(growth_34)
+growth_37_avg <- function_to_get_means_across_replicates(growth_37)
+
+
+## Add a column to each of these with the temperature that they were supposed to have, then I can pivot them to long version
+growth_26_avg <- growth_26_avg %>%
+  dplyr::mutate(Temp_set = 26, .after = Temperature) %>%
+  dplyr::rename(Temp_observed = Temperature) %>%
+  pivot_longer(!c(Time, Temp_set, Temp_observed), names_to = "Strain", values_to = "OD_raw")
+growth_30_avg <- growth_30_avg %>%
+  dplyr::mutate(Temp_set = 30, .after = Temperature) %>%
+  dplyr::rename(Temp_observed = Temperature) %>%
+  pivot_longer(!c(Time, Temp_set, Temp_observed), names_to = "Strain", values_to = "OD_raw")
+growth_34_avg <- growth_34_avg %>%
+  dplyr::mutate(Temp_set = 34, .after = Temperature) %>%
+  dplyr::rename(Temp_observed = Temperature) %>%
+  pivot_longer(!c(Time, Temp_set, Temp_observed), names_to = "Strain", values_to = "OD_raw")
+growth_37_avg <- growth_37_avg %>%
+  dplyr::mutate(Temp_set = 37, .after = Temperature) %>%
+  dplyr::rename(Temp_observed = Temperature) %>%
+  pivot_longer(!c(Time, Temp_set, Temp_observed), names_to = "Strain", values_to = "OD_raw")
 ```
 
 
@@ -121,10 +195,10 @@ growth_37 <- function_to_set_new_colnames(growth_37)
 # First two temperatures were in one incubator, next two in another one, should check the names and put them somewhere in the graph
 # They should be in the second sheet of each of these Excel files
 ggplot() +
-  geom_line(data = growth_26, aes(x = Time, y = T..600), col = "darkgreen", linewidth = 1) +
-  geom_line(data = growth_30, aes(x = Time, y = T..600), col = "blue", linewidth = 1) +
-  geom_line(data = growth_34, aes(x = Time..s., y = Temp....C.), col = "purple", linewidth = 1) +
-  geom_line(data = growth_37, aes(x = Time..s., y = Temp....C.), col = "orange", linewidth = 1) +
+  geom_line(data = growth_26, aes(x = Time, y = Temperature), col = "darkgreen", linewidth = 1) +
+  geom_line(data = growth_30, aes(x = Time, y = Temperature), col = "blue", linewidth = 1) +
+  geom_line(data = growth_34, aes(x = Time, y = Temperature), col = "purple", linewidth = 1) +
+  geom_line(data = growth_37, aes(x = Time, y = Temperature), col = "orange", linewidth = 1) +
   geom_hline(yintercept = 26, col = "black") +
   geom_hline(yintercept = 30, col = "black") +
   geom_hline(yintercept = 34, col = "black") +
