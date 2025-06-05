@@ -21,6 +21,7 @@ library(stringr)
 library(glue)
 library(viridis)
 library(platetools)
+library(gridExtra)
 set.seed(2025)
 ```
 
@@ -30,7 +31,7 @@ set.seed(2025)
 # 0. Set up
 ## 0.1. Set up directory
 ```{r}
-working_from = "home"
+working_from = "charite"
 
 if (working_from == "home") {
   base_dir = "/home/alvaro/MyStuff/"
@@ -77,7 +78,7 @@ colnames(growth_30) <- new_colnames
 
 # Sample IDs - replicate it a couple times changing IDs, since the samples in wells A, B and C are triplicates of the same sample, and the same for E, F, G
 sample_ids <- read.xlsx(file = paste(base_dir, "/TSSC/Data/pilot/pre_test_growth_curves/strains_for_pilot.xlsx", sep=""), sheetIndex = 1) %>%
-  dplyr::select(GC96, Sys.Name, Std.Name, TS.allele, Lab.ID, Synthetase, Gene.name, Status) %>%
+  dplyr::select(GC96, Sys.Name, Std.Name, TS.allele, Lab.ID, Synthetase, Gene.name, Status, Lethal_temp) %>%
   dplyr::mutate(Sample.ID = paste(Sys.Name, "_1", sep=""))
 sample_ids_2 <- sample_ids %>%
   dplyr::mutate(GC96 = case_when(grepl("A", GC96) ~ str_replace(GC96, "A", "B"),
@@ -99,10 +100,12 @@ d_sample_ids <- data.frame(c(paste("D", seq(1, 12, 1), sep="")),
                            rep("Empty", 12),
                            rep("Empty", 12),
                            rep("Empty", 12),
+                           rep("Empty", 12),
                            paste("Empty_", seq(1, 12, 1), sep=""))
 colnames(d_sample_ids) <- colnames(sample_ids)
 
 h_sample_ids <- data.frame(c(paste("H", seq(1, 12, 1), sep="")),
+                           rep("Empty", 12),
                            rep("Empty", 12),
                            rep("Empty", 12),
                            rep("Empty", 12),
@@ -137,7 +140,20 @@ growth_37 <- function_to_set_new_colnames(growth_37)
 
 
 ## Normalize to time = 0 - NOT DOING THIS FOR NOW, PROBABLY IMPLEMENT IT LATER, REMOVE THE FIRST 2 COLS AND THEN USE APPLY?
-
+normalize_to_time_0 <- function(df) {
+  keep_first_columns <- df %>%
+    dplyr::select(Time, Temperature)
+  only_data <- df %>%
+    dplyr::select(-c(Time, Temperature))
+  only_data <- as.data.frame(t(apply(as.matrix(only_data), 1, function(x) x/as.matrix(only_data)[1,])))
+  
+  out <- cbind(keep_first_columns, only_data)
+  return(out)
+}
+growth_26_norm <- normalize_to_time_0(growth_26)
+growth_30_norm <- normalize_to_time_0(growth_30)
+growth_34_norm <- normalize_to_time_0(growth_34)
+growth_37_norm <- normalize_to_time_0(growth_37)
 
 
 ## Take averages
@@ -167,30 +183,43 @@ growth_30_avg <- function_to_get_means_across_replicates(growth_30)
 growth_34_avg <- function_to_get_means_across_replicates(growth_34)
 growth_37_avg <- function_to_get_means_across_replicates(growth_37)
 
+growth_26_avg_norm <- function_to_get_means_across_replicates(growth_26_norm)
+growth_30_avg_norm <- function_to_get_means_across_replicates(growth_30_norm)
+growth_34_avg_norm <- function_to_get_means_across_replicates(growth_34_norm)
+growth_37_avg_norm <- function_to_get_means_across_replicates(growth_37_norm)
+
 
 ## Add a column to each of these with the temperature that they were supposed to have, then I can pivot them to long version
-growth_26_avg <- growth_26_avg %>%
-  dplyr::mutate(Temp_set = 26, .after = Temperature) %>%
-  dplyr::rename(Temp_observed = Temperature) %>%
-  pivot_longer(!c(Time, Temp_set, Temp_observed), names_to = "Strain", values_to = "OD_raw")
-growth_30_avg <- growth_30_avg %>%
-  dplyr::mutate(Temp_set = 30, .after = Temperature) %>%
-  dplyr::rename(Temp_observed = Temperature) %>%
-  pivot_longer(!c(Time, Temp_set, Temp_observed), names_to = "Strain", values_to = "OD_raw")
-growth_34_avg <- growth_34_avg %>%
-  dplyr::mutate(Temp_set = 34, .after = Temperature) %>%
-  dplyr::rename(Temp_observed = Temperature) %>%
-  pivot_longer(!c(Time, Temp_set, Temp_observed), names_to = "Strain", values_to = "OD_raw")
-growth_37_avg <- growth_37_avg %>%
-  dplyr::mutate(Temp_set = 37, .after = Temperature) %>%
-  dplyr::rename(Temp_observed = Temperature) %>%
-  pivot_longer(!c(Time, Temp_set, Temp_observed), names_to = "Strain", values_to = "OD_raw")
+make_long_and_add_fixed_temp <- function(df, fixed_temp) {
+  df <- df %>%
+    dplyr::mutate(Temp_set = fixed_temp, .after = Temperature) %>%
+    dplyr::rename(Temp_observed = Temperature) %>%
+    pivot_longer(!c(Time, Temp_set, Temp_observed), names_to = "Strain", values_to = "OD_raw")
+  return(df)
+}
+
+growth_26_avg <- make_long_and_add_fixed_temp(growth_26_avg, 26)
+growth_30_avg <- make_long_and_add_fixed_temp(growth_30_avg, 30)
+growth_34_avg <- make_long_and_add_fixed_temp(growth_34_avg, 34)
+growth_37_avg <- make_long_and_add_fixed_temp(growth_37_avg, 37)
+
+growth_26_avg_norm <- make_long_and_add_fixed_temp(growth_26_avg_norm, 26)
+growth_30_avg_norm <- make_long_and_add_fixed_temp(growth_30_avg_norm, 30)
+growth_34_avg_norm <- make_long_and_add_fixed_temp(growth_34_avg_norm, 34)
+growth_37_avg_norm <- make_long_and_add_fixed_temp(growth_37_avg_norm, 37)
+
+
+
+## Get them all together into the final dataset I'll use for plotting
+growth_long_full_raw <- rbind(growth_37_avg, rbind(growth_34_avg, rbind(growth_30_avg, growth_26_avg)))
+growth_long_full_norm <- rbind(growth_37_avg_norm, rbind(growth_34_avg_norm, rbind(growth_30_avg_norm, growth_26_avg_norm)))
 ```
 
 
 
 
-# 1. Initial checks - how stable was the temperature along each of the cultures?
+# 1. Initial checks
+## 1.1. How stable was the temperature along each of the cultures?
 ```{r}
 # First two temperatures were in one incubator, next two in another one, should check the names and put them somewhere in the graph
 # They should be in the second sheet of each of these Excel files
@@ -209,17 +238,142 @@ ggplot() +
   labs(title = "How well did the incubators maintain their assigned temperature?")
 ```
 
+## 1.2. How consistent is the initial OD across all samples and temperatures - to see if normalizing to it is reasonable
+```{r}
+
+```
+
+
+
+# 2. Main growth curves
+## 2.1. With the raw ODs - need to fix the Y axis, otherwise it's different for every plot
+WOULD LIKE TO ADD THE INFORMATION TO THE LETHAL ONES OF AT WHICH TEMPERATURE EACH OF THEM IS LETHAL, NEED TO RETRIEVE IT FROM THE LIBRARY FROM LI ET AL., 2015
+```{r}
+plot_list <- list()
+strains <- sort(unique(sample_ids$Sys.Name))
+for (i in 1:length(strains)) {
+  strain <- strains[i]
+  strain_type <- sample_ids$Status[sample_ids$Sys.Name == strain][1]
+  gene_name <- sample_ids$Gene.name[sample_ids$Sys.Name == strain][1]
+  temp <- growth_long_full_raw %>%
+    dplyr::filter(Strain == strain)
+  if (strain_type == "Synthetase") {
+    plot_list[[i]] <- ggplot(data = temp, aes(x = Time, y = OD_raw, group = as.factor(Temp_set), col = as.factor(Temp_set))) +
+    geom_line(linewidth = 1) +
+    theme_light() +
+    xlab("Time (s)") +
+    ylab("OD 600") +
+    labs(title = glue("Growth curves for strain {strain} - {strain_type}"),
+         subtitle = glue("{gene_name}"),
+         col = "Temperature (ºC)") +
+      coord_cartesian(ylim = c(0, 1.25))
+  } else 
+  if (strain_type == "Lethal") {
+    lethal_temp <- sample_ids$Lethal_temp[sample_ids$Sys.Name == strain][1]
+    plot_list[[i]] <- ggplot(data = temp, aes(x = Time, y = OD_raw, group = as.factor(Temp_set), col = as.factor(Temp_set))) +
+    geom_line(linewidth = 1) +
+    theme_light() +
+    xlab("Time (s)") +
+    ylab("OD 600") +
+    labs(title = glue("Growth curves for strain {strain} - {strain_type}"),
+         subtitle = glue("{lethal_temp}"),
+         col = "Temperature (ºC)") +
+      coord_cartesian(ylim = c(0, 1.25))
+  }
+  else
+  {
+    plot_list[[i]] <- ggplot(data = temp, aes(x = Time, y = OD_raw, group = as.factor(Temp_set), col = as.factor(Temp_set))) +
+    geom_line(linewidth = 1) +
+    theme_light() +
+    xlab("Time (s)") +
+    ylab("OD 600") +
+    labs(title = glue("Growth curves for strain {strain} - {strain_type}"),
+         col = "Temperature (ºC)") +
+      coord_cartesian(ylim = c(0, 1.25))
+  }
+}
+
+## List of ggplot objects has to be turned to list of grobs for grid.arrange to work
+my_grobs <- lapply(plot_list, ggplotGrob)
+
+## Print to PDF
+output_file = paste(base_dir, "TSSC/Output/Plots/growth_curves/gcs_trna_synthetases_raw.pdf", sep = "")
+ggsave(
+   filename = output_file, 
+   plot = marrangeGrob(my_grobs, nrow=3, ncol=3), 
+   width = 15, height = 9
+)
+```
+
+
+## 2.2. With the ODs normalized to time = 0
+```{r}
+plot_list <- list()
+temp <- sample_ids %>%
+  dplyr::arrange(Status)
+strains <- unique(temp$Sys.Name)
+for (i in 1:length(strains)) {
+  strain <- strains[i]
+  strain_type <- sample_ids$Status[sample_ids$Sys.Name == strain][1]
+  gene_name <- sample_ids$Gene.name[sample_ids$Sys.Name == strain][1]
+  temp <- growth_long_full_norm %>%
+    dplyr::filter(Strain == strain)
+  if (strain_type == "Synthetase") {
+    plot_list[[i]] <- ggplot(data = temp, aes(x = Time, y = OD_raw, group = as.factor(Temp_set), col = as.factor(Temp_set))) +
+    geom_line(linewidth = 1) +
+    theme_light() +
+    xlab("Time (s)") +
+    ylab("Ratio to OD at T0") +
+    labs(title = glue("Growth curves for strain {strain} - {strain_type}"),
+         subtitle = glue("{gene_name}"),
+         col = "Temperature (ºC)") +
+      coord_cartesian(ylim = c(0, 12.5))
+  } else 
+  if (strain_type == "Lethal") {
+    lethal_temp <- sample_ids$Lethal_temp[sample_ids$Sys.Name == strain][1]
+    plot_list[[i]] <- ggplot(data = temp, aes(x = Time, y = OD_raw, group = as.factor(Temp_set), col = as.factor(Temp_set))) +
+    geom_line(linewidth = 1) +
+    theme_light() +
+    xlab("Time (s)") +
+    ylab("OD 600") +
+    labs(title = glue("Growth curves for strain {strain} - {strain_type}"),
+         subtitle = glue("{lethal_temp}"),
+         col = "Temperature (ºC)") +
+      coord_cartesian(ylim = c(0, 12.5))
+  }
+  else
+  {
+    plot_list[[i]] <- ggplot(data = temp, aes(x = Time, y = OD_raw, group = as.factor(Temp_set), col = as.factor(Temp_set))) +
+    geom_line(linewidth = 1) +
+    theme_light() +
+    xlab("Time (s)") +
+    ylab("Ratio to OD at T0") +
+    labs(title = glue("Growth curves for strain {strain} - {strain_type}"),
+         col = "Temperature (ºC)") +
+      coord_cartesian(ylim = c(0, 12.5))
+  }
+}
+
+## List of ggplot objects has to be turned to list of grobs for grid.arrange to work
+my_grobs <- lapply(plot_list, ggplotGrob)
+
+## Print to PDF
+output_file = paste(base_dir, "TSSC/Output/Plots/growth_curves/gcs_trna_synthetases_norm_to_t0.pdf", sep = "")
+ggsave(
+   filename = output_file, 
+   plot = marrangeGrob(my_grobs, nrow=3, ncol=3), 
+   width = 15, height = 9
+)
+```
 
 
 
 
 
 
+```{r}
 
-
-
-
-
+```
 
 
 

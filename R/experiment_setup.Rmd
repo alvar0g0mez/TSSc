@@ -49,10 +49,10 @@ synthetases <- as.data.frame(fread(paste(base_dir, "TSSC/Data/synthetases/trna_s
 growth_agar <- as.data.frame(fread(paste(base_dir, "TSSC/Data/Boone_lab/Growth/Mine/Processed_by_them/growth_agar.tsv", sep="")))
 
 # Master tRNA dataset
-master_dataset <- as.data.frame(fread(paste(base_dir, "tRNA_KOs/Data/Other/GtRNAdb/master_tRNA_dataset.csv", sep="")))
+master_dataset <- as.data.frame(fread(paste(base_dir, "tRNA_KOs/Data/basic/master_tRNA_dataset.csv", sep="")))
 
 # Amino acid information dataset
-amino_acids <- as.data.frame(fread(paste(base_dir, "tRNA_KOs/Data/Other/GtRNAdb/amino_acids.csv", sep="")))
+amino_acids <- as.data.frame(fread(paste(base_dir, "tRNA_KOs/Data/Databases/GtRNAdb/amino_acids.csv", sep="")))
 
 # Layout of samples in the 384-well plates we got from the Boone lab
 sample_layout <- as.data.frame(fread(paste(base_dir, "TSSC/Data/Boone_lab/sample_layout.csv", sep="")))
@@ -220,12 +220,22 @@ lethal <- lethal %>%
   dplyr::select(-c(SB.notes, Well_ID_non_unique)) %>%
   dplyr::mutate(Status = "Lethal")
 
+## Grab the temperatures at which the lethal strains are lethal
+lethal_temps <- c()
+for (i in 1:nrow(lethal)) {
+  strain <- lethal$Lab.ID[i]
+  lethal_temps <- c(lethal_temps, li_2011$ts.on.SC[li_2011$Strain.ID == strain])
+}
+lethal$Lethal_temp <- lethal_temps
+
+
 strains_for_pilot_final <- strains_for_pilot_final %>%
   dplyr::mutate(Status = case_when(Synthetase == "Yes" ~ "Synthetase",
                                    Synthetase == "No" & Lab.ID == "Y12395" ~ "BY4741",
-                                   Synthetase == "No" & Lab.ID != "Y12395" ~ "Control"))
+                                   Synthetase == "No" & Lab.ID != "Y12395" ~ "Control"),
+                Lethal_temp = "")
 
-strains_for_pilot_final_and_lethal <- rbind(strains_for_pilot_final, lethal)
+strains_for_pilot_final_and_lethal <- rbind(strains_for_pilot_final, lethal) 
 ```
 
 
