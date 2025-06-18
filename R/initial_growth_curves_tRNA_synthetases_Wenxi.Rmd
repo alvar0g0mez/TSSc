@@ -33,7 +33,6 @@ set.seed(2025)
 ## 0.1. Set up directory
 ```{r}
 working_from = "charite"
-which_try = "first_try"
 
 if (working_from == "home") {
   base_dir = "/home/alvaro/MyStuff/"
@@ -41,19 +40,29 @@ if (working_from == "home") {
   if (working_from == "charite") {
     base_dir = "C:/MyStuff/"
   }
+
+
+which_try = "second_try"                 # This indicates which of the 2 sets of OD measurements Wenxi did we want to look at 
+if (which_try == "first_try") {
+  try_for_plots = "First round"
+} else
+  if (which_try == "second_try") {
+    try_for_plots = "Second round"
+  }
+
 ```
 
 ## 0.2. Load data - NEED TO UPDATE THIS WHEN I GET THE REMAINING DATASETS
 ```{r}
 if (which_try == "first_try") {
-  # First try
+  # First try - data from the first time Wenxi did the growth curves - only 24h
   growth_26 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/first_try/20250530-26C.xlsx", sep=""), sheetIndex = 1)
   growth_30 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/first_try/20250529-30C.xlsx", sep=""), sheetIndex = 1)
   growth_34 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/first_try/20250602-34C.xlsx", sep=""), sheetIndex = 1)
   growth_37 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/first_try/20250602-37C.xlsx", sep=""), sheetIndex = 1)
 } else 
   if (which_try == "second_try") {
-  # Second try
+  # Second try - data from the second time Wenxi did the growth curves - 48h
   growth_26 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/second_try/20250606-TSGC-26C-48.xlsx", sep=""), sheetIndex = 1)
   growth_30 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/second_try/20250606-TSGC-30C-48.xlsx", sep=""), sheetIndex = 1)
   growth_34 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/second_try/20250606-TSGC-34C-48.xlsx", sep=""), sheetIndex = 1)
@@ -67,187 +76,10 @@ sample_ids <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_
 ```
 
 
-## 0.2. Load and pre-process data - OLD - NEED TO GO THROUGH THIS AND DELETE EVERYTHING THAT IS NOT NECESSARY - BASICALLY FIGURE OUT IF THE WEIRD PLATE WITH THE WRONG EMPTY ROW STILL WORKS WITH MY NEW CODE OR IF I NEED TO KEEP THE PIECES OF THIS WHERE THAT TAKES PLACE
-```{r}
-## Growth data at the different temperatures
-#growth_26 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/20250530-26C.xlsx", sep=""), sheetIndex = 1) %>%
-#  dplyr::rename(Temperature = T..600)
-#growth_30 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/20250529-30C.xlsx", sep=""), sheetIndex = 1) %>%
-#  dplyr::rename(Temperature = T..600)
-#growth_34 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/20250602-34C.xlsx", sep=""), sheetIndex = 1) %>%
-#  dplyr::rename(Time = Time..s.,
-#                Temperature = Temp....C.) %>%
-#  dplyr::select(-Cycle.Nr.)
-#growth_34 <- na.omit(growth_34)                    # IDK WHY THIS ONE COMES WITH A FEW NA ROWS AT THE BOTTOM :(
-#growth_37 <- read.xlsx(file = paste(base_dir, "/TSSC/Data/pilot/pre_test_growth_curves/20250602-37C.xlsx", sep=""), sheetIndex = 1) %>%
-#  dplyr::rename(Time = Time..s.,
-#                Temperature = Temp....C.) %>%
-#  dplyr::select(-Cycle.Nr.)
-#growth_37 <- na.omit(growth_37)                     # IDK WHY THIS ONE COMES WITH A FEW NA ROWS AT THE BOTTOM :(
-#
-## In the 30ºC dataset, row D in the plate was not left emtpy, so I'm going to change the IDs so that: 
-##   - row D in the plate is now row E in my dataset
-##   - row E in the plate is now row F in my dataset
-##   - row F in the plate is now row G in my dataset
-##   - row G in the plate (empty) is now row D in my dataset
-## SO REMEMBER THAT LABELS IN THE ANALYSIS FOR ROWS FROM D ARE CHANGED HERE!
-#new_colnames <- c("Time", "Temperature",
-#                  paste("A", seq(1, 12, 1), sep = ""),
-#                  paste("B", seq(1, 12, 1), sep = ""), 
-#                  paste("C", seq(1, 12, 1), sep = ""), 
-#                  paste("E", seq(1, 12, 1), sep = ""), 
-#                  paste("F", seq(1, 12, 1), sep = ""),
-#                  paste("G", seq(1, 12, 1), sep = ""),
-#                  paste("D", seq(1, 12, 1), sep = ""),
-#                  paste("H", seq(1, 12, 1), sep = ""))
-#colnames(growth_30) <- new_colnames
-#
-## Sample IDs - replicate it a couple times changing IDs, since the samples in wells A, B and C are triplicates of the same sample, and the same for E, F, G
-#sample_ids <- read.xlsx(file = paste(base_dir, "/TSSC/Data/pilot/pre_test_growth_curves/strains_for_pilot.xlsx", sep=""), sheetIndex = 1) %>%
-#  dplyr::select(GC96, Sys.Name, Std.Name, TS.allele, Lab.ID, Synthetase, Gene.name, Status, Lethal_temp) %>%
-#  dplyr::mutate(Sample.ID = paste(Sys.Name, "_1", sep=""))
-#sample_ids_2 <- sample_ids %>%
-#  dplyr::mutate(GC96 = case_when(grepl("A", GC96) ~ str_replace(GC96, "A", "B"),
-#                                 grepl("E", GC96) ~ str_replace(GC96, "E", "F")),
-#                Sample.ID = paste(Sys.Name, "_2", sep=""))
-#sample_ids_3 <- sample_ids %>%
-#  dplyr::mutate(GC96 = case_when(grepl("A", GC96) ~ str_replace(GC96, "A", "C"),
-#                                 grepl("E", GC96) ~ str_replace(GC96, "E", "G")),
-#                Sample.ID = paste(Sys.Name, "_3", sep=""))
-#
-#sample_ids <- rbind(rbind(sample_ids, sample_ids_2), sample_ids_3)
-#
-## Need to add rows for the empty wells, otherwise I get an error later...
-#d_sample_ids <- data.frame(c(paste("D", seq(1, 12, 1), sep="")),
-#                           rep("Empty", 12),
-#                           rep("Empty", 12),
-#                           rep("Empty", 12),
-#                           rep("Empty", 12),
-#                           rep("Empty", 12),
-#                           rep("Empty", 12),
-#                           rep("Empty", 12),
-#                           rep("Empty", 12),
-#                           paste("Empty_", seq(1, 12, 1), sep=""))
-#colnames(d_sample_ids) <- colnames(sample_ids)
-#
-#h_sample_ids <- data.frame(c(paste("H", seq(1, 12, 1), sep="")),
-#                           rep("Empty", 12),
-#                           rep("Empty", 12),
-#                           rep("Empty", 12),
-#                           rep("Empty", 12),
-#                           rep("Empty", 12),
-#                           rep("Empty", 12),
-#                           rep("Empty", 12),
-#                           rep("Empty", 12),
-#                           paste("Empty_", seq(13, 24, 1), sep=""))
-#colnames(h_sample_ids) <- colnames(sample_ids)
-#
-#sample_ids <- rbind(rbind(sample_ids, d_sample_ids), h_sample_ids)
-#
-#rm(sample_ids_2, sample_ids_3, d_sample_ids, h_sample_ids)
-#
-## Set new column names, take averages of the 3 replicates, set to long format and put all temperatures together --> ready to plot!
-### Set new colnames
-#function_to_set_new_colnames <- function(df) {
-#  old_colnames <- data.frame(colnames(df)[3:ncol(df)])
-#  colnames(old_colnames) <- c("GC96")
-#  temp_ids <- sample_ids %>%
-#    dplyr::select(GC96, Sample.ID)
-#  old_colnames <- left_join(old_colnames, temp_ids, by = "GC96")
-#  new_colnames <- c("Time", "Temperature", as.character(old_colnames$Sample.ID))
-#  
-#  colnames(df) <- new_colnames
-#  return(df)
-#}
-#growth_26 <- function_to_set_new_colnames(growth_26)
-#growth_30 <- function_to_set_new_colnames(growth_30)
-#growth_34 <- function_to_set_new_colnames(growth_34)
-#growth_37 <- function_to_set_new_colnames(growth_37)
-#
-#
-### Normalize to time = 0 - NOT DOING THIS FOR NOW, PROBABLY IMPLEMENT IT LATER, REMOVE THE FIRST 2 COLS AND THEN USE APPLY?
-#normalize_to_time_0 <- function(df) {
-#  keep_first_columns <- df %>%
-#    dplyr::select(Time, Temperature)
-#  only_data <- df %>%
-#    dplyr::select(-c(Time, Temperature))
-#  only_data <- as.data.frame(t(apply(as.matrix(only_data), 1, function(x) x/as.matrix(only_data)[1,])))
-#  
-#  out <- cbind(keep_first_columns, only_data)
-#  return(out)
-#}
-#growth_26_norm <- normalize_to_time_0(growth_26)
-#growth_30_norm <- normalize_to_time_0(growth_30)
-#growth_34_norm <- normalize_to_time_0(growth_34)
-#growth_37_norm <- normalize_to_time_0(growth_37)
-#
-#
-### Take averages
-## Iterate over datasets
-## For each of them, iterate over the strains, getting their averages and creating a new column for each of them
-## Probably as indicated here: https://www.statology.org/dplyr-mean-for-multiple-columns/
-#strains <- unique(sample_ids$Sys.Name)
-#function_to_get_means_across_replicates <- function(df) {
-#  # Come up with the average columns
-#  for (i in 1:length(strains)) {
-#    strain <- strains[i]
-#    df <- df %>%
-#      rowwise() %>%
-#      dplyr::mutate("{paste0(strain)}" := mean(c_across(contains(strain))), .after = Temperature)
-#  }
-#  
-#  # Remove all other columns
-#  df <- df %>%
-#    dplyr::select(Time, Temperature, any_of(strains))
-#  
-#  # Return the finished dataframe
-#  return(df)
-#}
-#
-#growth_26_avg <- function_to_get_means_across_replicates(growth_26)
-#growth_30_avg <- function_to_get_means_across_replicates(growth_30)
-#growth_34_avg <- function_to_get_means_across_replicates(growth_34)
-#growth_37_avg <- function_to_get_means_across_replicates(growth_37)
-#
-#growth_26_avg_norm <- function_to_get_means_across_replicates(growth_26_norm)
-#growth_30_avg_norm <- function_to_get_means_across_replicates(growth_30_norm)
-#growth_34_avg_norm <- function_to_get_means_across_replicates(growth_34_norm)
-#growth_37_avg_norm <- function_to_get_means_across_replicates(growth_37_norm)
-#
-#
-### Add a column to each of these with the temperature that they were supposed to have, then I can pivot them to long version
-#make_long_and_add_fixed_temp <- function(df, fixed_temp) {
-#  df <- df %>%
-#    dplyr::mutate(Temp_set = fixed_temp, .after = Temperature) %>%
-#    dplyr::rename(Temp_observed = Temperature) %>%
-#    pivot_longer(!c(Time, Temp_set, Temp_observed), names_to = "Strain", values_to = "OD_raw")
-#  return(df)
-#}
-#
-#growth_26_avg <- make_long_and_add_fixed_temp(growth_26_avg, 26)
-#growth_30_avg <- make_long_and_add_fixed_temp(growth_30_avg, 30)
-#growth_34_avg <- make_long_and_add_fixed_temp(growth_34_avg, 34)
-#growth_37_avg <- make_long_and_add_fixed_temp(growth_37_avg, 37)
-#
-#growth_26_avg_norm <- make_long_and_add_fixed_temp(growth_26_avg_norm, 26)
-#growth_30_avg_norm <- make_long_and_add_fixed_temp(growth_30_avg_norm, 30)
-#growth_34_avg_norm <- make_long_and_add_fixed_temp(growth_34_avg_norm, 34)
-#growth_37_avg_norm <- make_long_and_add_fixed_temp(growth_37_avg_norm, 37)
-#
-#
-#
-### Get them all together into the final dataset I'll use for plotting
-#growth_long_full_raw <- rbind(growth_37_avg, rbind(growth_34_avg, rbind(growth_30_avg, growth_26_avg)))
-#growth_long_full_norm <- rbind(growth_37_avg_norm, rbind(growth_34_avg_norm, rbind(growth_30_avg_norm, growth_26_avg_norm)))
-```
 
 
-
-
-
-
-
-Create functions to pre-process plate reader growth curves
+# 1. Process growth data from PlateReader or whatever
+## 1.1. Create functions to pre-process plate reader growth curves - TODO: NEED TO DOCUMENT THESE FUNCTIONS
 ```{r}
 #' This function changes the sample names from the well ID to sample ID
 #' 
@@ -448,10 +280,15 @@ process_plate_reader_growth_curves <- function(df,
 }
 ```
 
-Run pre-processing - first try
+## 1.2. Run pre-processing - for the datasets from the first set of growth curves
+Here I apply all the functions created above to the datasets from both the first and second set of growth curves done by Wenxi. I must have separate code for each of these 2 options since there are different temperatures in the 2 sets, and the 30ºC one in the first set has the wrong row empty. 
 ```{r}
+# Those from the first set
 if (which_try == "first_try") {
-  # Get the long version, normalized to time 0, averaged across replicates, growth data for each of the temperatures
+  # Here we get: 
+  # - Long version
+  # - Normalized to time 0
+  # - Averaged across replicates
   growth_26_avg_norm_long <- process_plate_reader_growth_curves(df = growth_26,
                                                            sample_ids = sample_ids, 
                                                            replicates = list(c("A", "B", "C"), c("E", "F", "G")),
@@ -487,18 +324,21 @@ if (which_try == "first_try") {
                                                            normalized_to_t0 = T,
                                                            long_version = T,
                                                            wrong_plate = F)
-  # Join results from this into a single long dataframe to plot from
+  # Join results from this into a single long dataframe with all temperatures, to plot from
   growth_long_full_norm <- rbind(rbind(rbind(growth_26_avg_norm_long, growth_30_avg_norm_long), growth_34_avg_norm_long), growth_37_avg_norm_long)
   
   
   
-  # Get the long version, normalized to time 0, averaged across replicates, growth data for each of the temperatures
+  # Here we get:
+  # - Long version
+  # - Not normalized
+  # - Averaged across replicates
   growth_26_avg_long_raw <- process_plate_reader_growth_curves(df = growth_26,
                                                            sample_ids = sample_ids, 
                                                            replicates = list(c("A", "B", "C"), c("E", "F", "G")),
                                                            empty_rows = c("D", "H"),
                                                            fixed_temp = 26,
-                                                           normalized_to_t0 = T,
+                                                           normalized_to_t0 = F,
                                                            long_version = T,
                                                            wrong_plate = F)
   
@@ -507,7 +347,7 @@ if (which_try == "first_try") {
                                                            replicates = list(c("A", "B", "C"), c("E", "F", "G")),
                                                            empty_rows = c("D", "H"),
                                                            fixed_temp = 30,
-                                                           normalized_to_t0 = T,
+                                                           normalized_to_t0 = F,
                                                            long_version = T,
                                                            wrong_plate = T)
   
@@ -516,7 +356,7 @@ if (which_try == "first_try") {
                                                            replicates = list(c("A", "B", "C"), c("E", "F", "G")),
                                                            empty_rows = c("D", "H"),
                                                            fixed_temp = 34,
-                                                           normalized_to_t0 = T,
+                                                           normalized_to_t0 = F,
                                                            long_version = T,
                                                            wrong_plate = F)
   
@@ -525,19 +365,23 @@ if (which_try == "first_try") {
                                                            replicates = list(c("A", "B", "C"), c("E", "F", "G")),
                                                            empty_rows = c("D", "H"),
                                                            fixed_temp = 37,
-                                                           normalized_to_t0 = T,
+                                                           normalized_to_t0 = F,
                                                            long_version = T,
                                                            wrong_plate = F)
-  # Join results from this into a single long dataframe to plot from
+  # Join results from this into a single long dataframe with all temperatures, to plot from
   growth_long_full_raw <- rbind(rbind(rbind(growth_26_avg_long_raw, growth_30_avg_long_raw), growth_34_avg_long_raw), growth_37_avg_long_raw)
 }
-```
 
-Run pre-processing - second try
-```{r}
+
+
+
+# Those from the second set
 if (which_try == "second_try") {
-  # Get the long version, normalized to time 0, averaged across replicates, growth data for each of the temperatures
-  growth_26_avg_norm_long_second <- process_plate_reader_growth_curves(df = growth_26,
+  # Here we get: 
+  # - Long version
+  # - Normalized to time 0
+  # - Averaged across replicates
+  growth_26_avg_norm_long <- process_plate_reader_growth_curves(df = growth_26,
                                                            sample_ids = sample_ids, 
                                                            replicates = list(c("A", "B", "C"), c("E", "F", "G")),
                                                            empty_rows = c("D", "H"),
@@ -563,11 +407,15 @@ if (which_try == "second_try") {
                                                            normalized_to_t0 = T,
                                                            long_version = T,
                                                            wrong_plate = F)
-  # Join results from this into a single long dataframe to plot from
+  # Join results from this into a single long dataframe with all temperatures, to plot from
   growth_long_full_norm <- rbind(rbind(growth_26_avg_norm_long, growth_30_avg_norm_long), growth_34_avg_norm_long)
   
   
-  # Get the wide version, without normalization, to check what happened at 30ºC
+  # Here we get: 
+  # - Wide version
+  # - No normalization
+  # - Averaged across replicates
+  # --> In order to check what was the issue at 30ºC!
   growth_26_avg <- process_plate_reader_growth_curves(df = growth_26,
                                                            sample_ids = sample_ids, 
                                                            replicates = list(c("A", "B", "C"), c("E", "F", "G")),
@@ -596,7 +444,10 @@ if (which_try == "second_try") {
                                                            wrong_plate = F)
   
   
-  # Get the long version, averaged across replicates but without normalization, growth data for each of the temperatures
+  # Here we get: 
+  # - Long version
+  # - No normalization
+  # - Averaged across replicates
   growth_26_avg_long_raw <- process_plate_reader_growth_curves(df = growth_26,
                                                            sample_ids = sample_ids, 
                                                            replicates = list(c("A", "B", "C"), c("E", "F", "G")),
@@ -623,31 +474,19 @@ if (which_try == "second_try") {
                                                            normalized_to_t0 = F,
                                                            long_version = T,
                                                            wrong_plate = F)
-  # Join results from this into a single long dataframe to plot from
+  # Join results from this into a single long dataframe with all temperatures, to plot from
   growth_long_full_raw <- rbind(rbind(growth_26_avg_long_raw, growth_30_avg_long_raw), growth_34_avg_long_raw)
 }
 ```
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-# 1. Initial checks
-## 1.1. How stable was the temperature along each of the cultures?
+# 2. Initial checks
+## 2.1. How stable was the temperature along each of the cultures?
 ```{r}
-# First two temperatures were in one incubator, next two in another one, should check the names and put them somewhere in the graph
+# In the first set of measurements, first two temperatures were in one incubator, next two in another one, should check the names and put them somewhere in the graph - similar for the second set, there is a mix of the 2 different incubators/PlateReaders/whatever they are
 # They should be in the second sheet of each of these Excel files
-# Be careful that I am not doing this from the original data but from the long version, so if I change anything it might get biased (more observations from one temperature than another or whatever)
+# Be careful, I am not doing this from the original data but from the long version, so if I change anything it might get biased (more observations from one temperature than another or whatever)
 
 if (which_try == "first_try") {
   ggplot() +
@@ -663,7 +502,7 @@ if (which_try == "first_try") {
   xlab("Time (s)") +
   ylab("Temperature") +
   labs(title = "How well did the incubators maintain their assigned temperature?",
-       subtitle = "First try")
+       subtitle = try_for_plots)
 } else 
   if (which_try == "second_try") {
   ggplot() +
@@ -677,17 +516,26 @@ if (which_try == "first_try") {
   xlab("Time (s)") +
   ylab("Temperature") +
   labs(title = "How well did the incubators maintain their assigned temperature?",
-       subtitle = "Second try")
+       subtitle = try_for_plots)
 }
 
 ```
 
-## 1.2. How consistent is the initial OD across all samples and temperatures - to see if normalizing to it is reasonable
+## 2.2. How consistent is the initial OD across all samples and temperatures - to see if normalizing to it is reasonable
+I would say that at least for the second round it does look pretty good?? All initial ODs are within a range of 0.025 OD, seems reasonable to me. 34ºC does look generally a bit higher than the other temperatures. 
 ```{r}
-
+ggplot(data = subset(growth_long_full_raw, Time == 0), 
+       aes(x = Strain, y = OD_raw, col = as.factor(Temp_set))) +
+  geom_point() +
+  theme_light() +
+  labs(title = "ODs at time = 0, for each strain at each temperature",
+       subtitle = try_for_plots,
+       col = "Temperature") +
+  ylab("OD") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
 ```
 
-## 1.3. Check what is wrong with T = 30ºC in the second try of the pilot
+## 2.3. Check what is wrong with T = 30ºC in the second try of the pilot - no idea, but it is wrong lol, Wenxi is going to repeat it, I think I can delete this
 ```{r}
 #t_26_just_data <- growth_26_avg %>%
 #  dplyr::select(-c(Time, Temperature))
@@ -704,10 +552,8 @@ if (which_try == "first_try") {
 
 
 
-
-# 2. Main growth curves
-## 2.1. With the raw ODs - need to fix the Y axis, otherwise it's different for every plot
-WOULD LIKE TO ADD THE INFORMATION TO THE LETHAL ONES OF AT WHICH TEMPERATURE EACH OF THEM IS LETHAL, NEED TO RETRIEVE IT FROM THE LIBRARY FROM LI ET AL., 2015
+# 3. Main growth curves
+## 3.1. With the raw ODs
 ```{r}
 plot_list <- list()
 strains <- sort(unique(sample_ids$Sys.Name))
@@ -765,8 +611,7 @@ ggsave(
 )
 ```
 
-
-## 2.2. With the ODs normalized to time = 0
+## 3.2. With the ODs normalized to time = 0
 ```{r}
 plot_list <- list()
 temp <- sample_ids %>%
@@ -779,7 +624,7 @@ for (i in 1:length(strains)) {
   temp <- growth_long_full_norm %>%
     dplyr::filter(Strain == strain)
   if (strain_type == "Synthetase") {
-    plot_list[[i]] <- ggplot(data = temp, aes(x = Time, y = OD_raw, group = as.factor(Temp_set), col = as.factor(Temp_set))) +
+    plot_list[[i]] <- ggplot(data = temp, aes(x = Time, y = OD_norm, group = as.factor(Temp_set), col = as.factor(Temp_set))) +
     geom_line(linewidth = 1) +
     theme_light() +
     xlab("Time (s)") +
@@ -791,7 +636,7 @@ for (i in 1:length(strains)) {
   } else 
   if (strain_type == "Lethal") {
     lethal_temp <- sample_ids$Lethal_temp[sample_ids$Sys.Name == strain][1]
-    plot_list[[i]] <- ggplot(data = temp, aes(x = Time, y = OD_raw, group = as.factor(Temp_set), col = as.factor(Temp_set))) +
+    plot_list[[i]] <- ggplot(data = temp, aes(x = Time, y = OD_norm, group = as.factor(Temp_set), col = as.factor(Temp_set))) +
     geom_line(linewidth = 1) +
     theme_light() +
     xlab("Time (s)") +
@@ -803,7 +648,7 @@ for (i in 1:length(strains)) {
   }
   else
   {
-    plot_list[[i]] <- ggplot(data = temp, aes(x = Time, y = OD_raw, group = as.factor(Temp_set), col = as.factor(Temp_set))) +
+    plot_list[[i]] <- ggplot(data = temp, aes(x = Time, y = OD_norm, group = as.factor(Temp_set), col = as.factor(Temp_set))) +
     geom_line(linewidth = 1) +
     theme_light() +
     xlab("Time (s)") +
