@@ -62,10 +62,11 @@ if (which_try == "first_try") {
   growth_37 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/first_try/20250602-37C.xlsx", sep=""), sheetIndex = 1)
 } else 
   if (which_try == "second_try") {
-  # Second try - data from the second time Wenxi did the growth curves - 48h
-  growth_26 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/second_try/20250606-TSGC-26C-48.xlsx", sep=""), sheetIndex = 1)
-  growth_30 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/second_try/20250606-TSGC-30C-48.xlsx", sep=""), sheetIndex = 1)
-  growth_34 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/second_try/20250606-TSGC-34C-48.xlsx", sep=""), sheetIndex = 1)
+    # Second try - data from the second time Wenxi did the growth curves - 48h
+    growth_22 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/second_try/20250620 TSGC-22-45H.xlsx", sep=""), sheetIndex = 1)
+    growth_26 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/second_try/20250606-TSGC-26C-48.xlsx", sep=""), sheetIndex = 1)
+    growth_30 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/second_try/20250606-TSGC-30C-48.xlsx", sep=""), sheetIndex = 1)
+    growth_34 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/second_try/20250606-TSGC-34C-48.xlsx", sep=""), sheetIndex = 1)
 }
 
 
@@ -381,6 +382,15 @@ if (which_try == "second_try") {
   # - Long version
   # - Normalized to time 0
   # - Averaged across replicates
+  growth_22_avg_norm_long <- process_plate_reader_growth_curves(df = growth_22,
+                                                           sample_ids = sample_ids, 
+                                                           replicates = list(c("A", "B", "C"), c("E", "F", "G")),
+                                                           empty_rows = c("D", "H"),
+                                                           fixed_temp = 22,
+                                                           normalized_to_t0 = T,
+                                                           long_version = T,
+                                                           wrong_plate = F)
+  
   growth_26_avg_norm_long <- process_plate_reader_growth_curves(df = growth_26,
                                                            sample_ids = sample_ids, 
                                                            replicates = list(c("A", "B", "C"), c("E", "F", "G")),
@@ -408,7 +418,7 @@ if (which_try == "second_try") {
                                                            long_version = T,
                                                            wrong_plate = F)
   # Join results from this into a single long dataframe with all temperatures, to plot from
-  growth_long_full_norm <- rbind(rbind(growth_26_avg_norm_long, growth_30_avg_norm_long), growth_34_avg_norm_long)
+  growth_long_full_norm <- rbind(rbind(rbind(growth_22_avg_norm_long, growth_26_avg_norm_long), growth_30_avg_norm_long), growth_34_avg_norm_long)
   
   
   # Here we get: 
@@ -416,6 +426,15 @@ if (which_try == "second_try") {
   # - No normalization
   # - Averaged across replicates
   # --> In order to check what was the issue at 30ºC!
+  growth_22_avg <- process_plate_reader_growth_curves(df = growth_22,
+                                                           sample_ids = sample_ids, 
+                                                           replicates = list(c("A", "B", "C"), c("E", "F", "G")),
+                                                           empty_rows = c("D", "H"),
+                                                           fixed_temp = 22,
+                                                           normalized_to_t0 = F,
+                                                           long_version = F,
+                                                           wrong_plate = F)
+  
   growth_26_avg <- process_plate_reader_growth_curves(df = growth_26,
                                                            sample_ids = sample_ids, 
                                                            replicates = list(c("A", "B", "C"), c("E", "F", "G")),
@@ -448,6 +467,15 @@ if (which_try == "second_try") {
   # - Long version
   # - No normalization
   # - Averaged across replicates
+  growth_22_avg_long_raw <- process_plate_reader_growth_curves(df = growth_22,
+                                                           sample_ids = sample_ids, 
+                                                           replicates = list(c("A", "B", "C"), c("E", "F", "G")),
+                                                           empty_rows = c("D", "H"),
+                                                           fixed_temp = 22,
+                                                           normalized_to_t0 = F,
+                                                           long_version = T,
+                                                           wrong_plate = F)
+  
   growth_26_avg_long_raw <- process_plate_reader_growth_curves(df = growth_26,
                                                            sample_ids = sample_ids, 
                                                            replicates = list(c("A", "B", "C"), c("E", "F", "G")),
@@ -475,7 +503,7 @@ if (which_try == "second_try") {
                                                            long_version = T,
                                                            wrong_plate = F)
   # Join results from this into a single long dataframe with all temperatures, to plot from
-  growth_long_full_raw <- rbind(rbind(growth_26_avg_long_raw, growth_30_avg_long_raw), growth_34_avg_long_raw)
+  growth_long_full_raw <- rbind(rbind(rbind(growth_22_avg_long_raw, growth_26_avg_long_raw), growth_30_avg_long_raw), growth_34_avg_long_raw)
 }
 ```
 
@@ -506,9 +534,11 @@ if (which_try == "first_try") {
 } else 
   if (which_try == "second_try") {
   ggplot() +
+  geom_line(data = subset(growth_long_full_norm, Temp_set == 22), aes(x = Time, y = Temp_observed), col = "orange", linewidth = 1) +
   geom_line(data = subset(growth_long_full_norm, Temp_set == 26), aes(x = Time, y = Temp_observed), col = "darkgreen", linewidth = 1) +
   geom_line(data = subset(growth_long_full_norm, Temp_set == 30), aes(x = Time, y = Temp_observed), col = "blue", linewidth = 1) +
   geom_line(data = subset(growth_long_full_norm, Temp_set == 34), aes(x = Time, y = Temp_observed), col = "purple", linewidth = 1) +
+  geom_hline(yintercept = 22, col = "black") +
   geom_hline(yintercept = 26, col = "black") +
   geom_hline(yintercept = 30, col = "black") +
   geom_hline(yintercept = 34, col = "black") +
