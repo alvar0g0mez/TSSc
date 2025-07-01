@@ -63,9 +63,9 @@ if (which_try == "first_try") {
 } else 
   if (which_try == "second_try") {
     # Second try - data from the second time Wenxi did the growth curves - 48h
-    growth_22 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/second_try/20250620 TSGC-22-45H.xlsx", sep=""), sheetIndex = 1)
+    growth_22 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/second_try/20250623 TSGC-22-48H.xlsx", sep=""), sheetIndex = 1)
     growth_26 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/second_try/20250606-TSGC-26C-48.xlsx", sep=""), sheetIndex = 1)
-    growth_30 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/second_try/20250606-TSGC-30C-48.xlsx", sep=""), sheetIndex = 1)
+    growth_30 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/second_try/20250623-TSGC-30C-48.xlsx", sep=""), sheetIndex = 1)
     growth_34 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/second_try/20250606-TSGC-34C-48.xlsx", sep=""), sheetIndex = 1)
 }
 
