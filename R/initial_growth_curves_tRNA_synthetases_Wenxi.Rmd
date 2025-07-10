@@ -52,7 +52,7 @@ if (which_try == "first_try") {
 
 ```
 
-## 0.2. Load data - NEED TO UPDATE THIS WHEN I GET THE REMAINING DATASETS
+## 0.2. Load data
 ```{r}
 if (which_try == "first_try") {
   # First try - data from the first time Wenxi did the growth curves - only 24h
@@ -507,6 +507,18 @@ if (which_try == "second_try") {
 }
 ```
 
+## 1.3. In the long versions of the datasets, create a new column with the time in hours instead of seconds, quite a bit more understandable
+```{r}
+growth_long_full_norm <- growth_long_full_norm %>%
+  dplyr::mutate(Time_secs = Time,
+                Time = Time_secs/3600)
+
+growth_long_full_raw <- growth_long_full_raw %>%
+  dplyr::mutate(Time_secs = Time,
+                Time = Time_secs/3600)
+```
+
+
 
 
 # 2. Initial checks
@@ -527,7 +539,7 @@ if (which_try == "first_try") {
   geom_hline(yintercept = 34, col = "black") +
   geom_hline(yintercept = 37, col = "black") +
   theme_light() +
-  xlab("Time (s)") +
+  xlab("Time (h)") +
   ylab("Temperature") +
   labs(title = "How well did the incubators maintain their assigned temperature?",
        subtitle = try_for_plots)
@@ -543,7 +555,7 @@ if (which_try == "first_try") {
   geom_hline(yintercept = 30, col = "black") +
   geom_hline(yintercept = 34, col = "black") +
   theme_light() +
-  xlab("Time (s)") +
+  xlab("Time (h)") +
   ylab("Temperature") +
   labs(title = "How well did the incubators maintain their assigned temperature?",
        subtitle = try_for_plots)
@@ -594,13 +606,14 @@ for (i in 1:length(strains)) {
   temp <- growth_long_full_raw %>%
     dplyr::filter(Strain == strain)
   if (strain_type == "Synthetase") {
+    lethal_temp <- sample_ids$Lethal_temp[sample_ids$Sys.Name == strain][1]
     plot_list[[i]] <- ggplot(data = temp, aes(x = Time, y = OD_raw, group = as.factor(Temp_set), col = as.factor(Temp_set))) +
     geom_line(linewidth = 1) +
     theme_light() +
-    xlab("Time (s)") +
+    xlab("Time (h)") +
     ylab("OD 600") +
-    labs(title = glue("Growth curves for strain {strain} - {strain_type}"),
-         subtitle = glue("{gene_name}"),
+    labs(title = glue("{strain} - {strain_type}"),
+         subtitle = glue("{gene_name} - {lethal_temp}"),
          col = "Temperature (ºC)") +
       coord_cartesian(ylim = c(0, 1.25))
   } else 
@@ -609,9 +622,9 @@ for (i in 1:length(strains)) {
     plot_list[[i]] <- ggplot(data = temp, aes(x = Time, y = OD_raw, group = as.factor(Temp_set), col = as.factor(Temp_set))) +
     geom_line(linewidth = 1) +
     theme_light() +
-    xlab("Time (s)") +
+    xlab("Time (h)") +
     ylab("OD 600") +
-    labs(title = glue("Growth curves for strain {strain} - {strain_type}"),
+    labs(title = glue("{strain} - {strain_type}"),
          subtitle = glue("{lethal_temp}"),
          col = "Temperature (ºC)") +
       coord_cartesian(ylim = c(0, 1.25))
@@ -621,9 +634,9 @@ for (i in 1:length(strains)) {
     plot_list[[i]] <- ggplot(data = temp, aes(x = Time, y = OD_raw, group = as.factor(Temp_set), col = as.factor(Temp_set))) +
     geom_line(linewidth = 1) +
     theme_light() +
-    xlab("Time (s)") +
+    xlab("Time (h)") +
     ylab("OD 600") +
-    labs(title = glue("Growth curves for strain {strain} - {strain_type}"),
+    labs(title = glue("{strain} - {strain_type}"),
          col = "Temperature (ºC)") +
       coord_cartesian(ylim = c(0, 1.25))
   }
@@ -639,6 +652,10 @@ ggsave(
    plot = marrangeGrob(my_grobs, nrow=3, ncol=3), 
    width = 15, height = 9
 )
+
+for (i in 1:length(plot_list)) {
+  print(plot_list[[i]])
+}
 ```
 
 ## 3.2. With the ODs normalized to time = 0
@@ -654,13 +671,14 @@ for (i in 1:length(strains)) {
   temp <- growth_long_full_norm %>%
     dplyr::filter(Strain == strain)
   if (strain_type == "Synthetase") {
+    lethal_temp <- sample_ids$Lethal_temp[sample_ids$Sys.Name == strain][1]
     plot_list[[i]] <- ggplot(data = temp, aes(x = Time, y = OD_norm, group = as.factor(Temp_set), col = as.factor(Temp_set))) +
     geom_line(linewidth = 1) +
     theme_light() +
-    xlab("Time (s)") +
+    xlab("Time (h)") +
     ylab("Ratio to OD at T0") +
-    labs(title = glue("Growth curves for strain {strain} - {strain_type}"),
-         subtitle = glue("{gene_name}"),
+    labs(title = glue("{strain} - {strain_type}"),
+         subtitle = glue("{gene_name} - {lethal_temp}"),
          col = "Temperature (ºC)") +
       coord_cartesian(ylim = c(0, 12.5))
   } else 
@@ -669,9 +687,9 @@ for (i in 1:length(strains)) {
     plot_list[[i]] <- ggplot(data = temp, aes(x = Time, y = OD_norm, group = as.factor(Temp_set), col = as.factor(Temp_set))) +
     geom_line(linewidth = 1) +
     theme_light() +
-    xlab("Time (s)") +
+    xlab("Time (h)") +
     ylab("OD 600") +
-    labs(title = glue("Growth curves for strain {strain} - {strain_type}"),
+    labs(title = glue("{strain} - {strain_type}"),
          subtitle = glue("{lethal_temp}"),
          col = "Temperature (ºC)") +
       coord_cartesian(ylim = c(0, 12.5))
@@ -681,9 +699,9 @@ for (i in 1:length(strains)) {
     plot_list[[i]] <- ggplot(data = temp, aes(x = Time, y = OD_norm, group = as.factor(Temp_set), col = as.factor(Temp_set))) +
     geom_line(linewidth = 1) +
     theme_light() +
-    xlab("Time (s)") +
+    xlab("Time (h)") +
     ylab("Ratio to OD at T0") +
-    labs(title = glue("Growth curves for strain {strain} - {strain_type}"),
+    labs(title = glue("{strain} - {strain_type}"),
          col = "Temperature (ºC)") +
       coord_cartesian(ylim = c(0, 12.5))
   }
@@ -699,15 +717,28 @@ ggsave(
    plot = marrangeGrob(my_grobs, nrow=3, ncol=3), 
    width = 15, height = 9
 )
+
+for (i in 1:length(plot_list)) {
+  print(plot_list[[i]])
+}
 ```
 
 
 
-
+# 4. Check which references do the tRNA synthetase ts alleles come from, so I can maybe have a look at them and get more information on how they work
 ```{r}
+# Synthetases
+synthetases <- fread(paste(base_dir, "tRNA_KOs/Data/basic/trna_synthetases.csv", sep=""))
 
+# Supplementary table from Li et al., 2011 (contains the information of the references)
+li_et_al <- fread(paste(base_dir, "TSSC/Data/Articles/Li_et_al_2011/Li_et_al_S1.csv", sep="")) %>%
+  dplyr::select(Sys.Name, Reference.or.Source, ts.on.SC) %>%
+  dplyr::rename(Gene.secondaryIdentifier = Sys.Name) %>%
+  dplyr::filter(Gene.secondaryIdentifier %in% synthetases$Gene.secondaryIdentifier)
+
+print(li_et_al$Reference.or.Source)
 ```
-
+--> Only 5 of them were present in the original library :(
 
 
 
