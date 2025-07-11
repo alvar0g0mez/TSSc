@@ -72,8 +72,14 @@ if (which_try == "first_try") {
 
 # Sample IDs (metadata to match sample names)
 sample_ids <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/strains_for_pilot.xlsx", sep=""), sheetIndex = 1) %>%
-  dplyr::select(GC96, Sys.Name, Std.Name, TS.allele, Lab.ID, Synthetase, Gene.name, Status, Lethal_temp) %>%
   dplyr::mutate(Sample.ID = paste(Sys.Name, "_1", sep=""))
+
+# Turn rows of the 384 well plates from numbers to letters, and create a column with the well IDs combining the two
+sample_ids$Row384 <- sapply(sample_ids$Row384, function(i) LETTERS[i])
+sample_ids <- add_well_IDs(df = sample_ids, 
+                           column_numbers_col = "Col384", 
+                           row_letters_col = "Row384")
+colnames(sample_ids)[colnames(sample_ids) == "Well_ID"] <- "Well_ID_384"
 ```
 
 
@@ -725,7 +731,50 @@ for (i in 1:length(plot_list)) {
 
 
 
-# 4. Check which references do the tRNA synthetase ts alleles come from, so I can maybe have a look at them and get more information on how they work
+# 4. Evaluate time at which OD = 0.5 is reached per temperature and per strain - don't think this makes a lot of sense or is necessary tbh, could probably delete it
+```{r}
+growth_long_full_raw_OD_05 <- growth_long_full_raw %>%
+  dplyr::filter(OD_raw > 0.45 & OD_raw < 0.55)
+
+plot_list <- list()
+strains <- sort(sample_ids$Sys.Name[sample_ids$Status == "Synthetase"|sample_ids$Status == "Control"|sample_ids$Status == "BY4741"])
+
+for (i in 1:length(strains)) {
+  strain <- strains[[i]]
+  temp <- growth_long_full_raw_OD_05 %>%
+    dplyr::filter(Strain == strain)
+  temp$Temp_set <- as.factor(temp$Temp_set)
+  plot_list[[i]] <- ggplot(data = temp, aes(x = Temp_set, y = Time, group = Temp_set)) +
+    geom_boxplot(aes(fill = Temp_set)) +
+    theme_light() +
+    labs(title = glue("{strain}"),
+         fill = "Temperature") +
+    xlab("Temperature") +
+    ylab("Time (h)")
+}
+
+
+## List of ggplot objects has to be turned to list of grobs for grid.arrange to work
+my_grobs <- lapply(plot_list, ggplotGrob)
+
+## Print to PDF
+output_file = paste(base_dir, "TSSC/Output/Plots/pilot/growth_curves/gcs_trna_synthetases_raw_OD_05_boxplots_", which_try, ".pdf", sep = "")
+ggsave(
+   filename = output_file, 
+   plot = marrangeGrob(my_grobs, nrow=3, ncol=3), 
+   width = 15, height = 9
+)
+
+for (i in 1:length(plot_list)) {
+  print(plot_list[[i]])
+}
+```
+
+
+
+
+
+# 5. Check which references do the tRNA synthetase ts alleles come from, so I can maybe have a look at them and get more information on how they work
 ```{r}
 # Synthetases
 synthetases <- fread(paste(base_dir, "tRNA_KOs/Data/basic/trna_synthetases.csv", sep=""))
@@ -739,6 +788,141 @@ li_et_al <- fread(paste(base_dir, "TSSC/Data/Articles/Li_et_al_2011/Li_et_al_S1.
 print(li_et_al$Reference.or.Source)
 ```
 --> Only 5 of them were present in the original library :(
+
+
+
+# 6. Sample layout for proteomics experiment
+## 6.1. Prepare the sample layout
+```{r}
+# Grab the strains we want to use for the proteomics experiment: the tRNA synthetase ts strains, and 2 of the replicates of the control strain
+strains_for_proteomics <- sample_ids %>%
+  dplyr::filter(Status == "Synthetase"|Sys.Name == "Control_1"|Sys.Name == "Control_2")
+
+# Add columns with the average OD of each strain at each temperature
+temperatures <- unique(growth_long_full_raw$Temp_set)
+strains <- strains_for_proteomics$Sys.Name
+
+# Iterate over temperatures
+for (i in 1:length(temperatures)) {
+  temperature <- temperatures[i]
+  avg_ods_this_temp_20 <- c()
+  avg_ods_this_temp_48 <- c()
+  
+  # For each temperature, iterates over strains, and get the average OD for each of them (at this temperature - at 20h and 48h)
+  for (j in 1:length(strains)) {
+    strain <- strains[j]
+    temp_20 <- growth_long_full_raw %>%
+      dplyr::filter(Strain == strain & Temp_set == temperature & Time > 19.5 & Time < 20.5)     # Time is not always exactly 20h
+    temp_48 <- growth_long_full_raw %>%
+      dplyr::filter(Strain == strain & Temp_set == temperature & Time > 47.5 & Time < 48.5)     # Time is not always exactly 48h
+    avg_ods_this_temp_20 <- c(avg_ods_this_temp_20, mean(temp_20$OD_raw))
+    avg_ods_this_temp_48 <- c(avg_ods_this_temp_48, mean(temp_48$OD_raw))
+  }
+  
+  # Add the vectors containing the collected average ODs at 20h and 48h at this temperature to the output dataframe
+  strains_for_proteomics[[paste("OD_at_", temperature, "_20h", sep="")]] <- avg_ods_this_temp_20
+  strains_for_proteomics[[paste("OD_at_", temperature, "_48h", sep="")]] <- avg_ods_this_temp_48
+}
+
+# Add two columns which summarize whether this strain is viable (OD > 0.2) at 48h - at 30ºC and 34ºC
+strains_for_proteomics <- strains_for_proteomics %>%
+  dplyr::mutate(Viable_at_30 = case_when(OD_at_30_48h > 0.2 ~ "Yes",
+                                         TRUE ~ "No"),
+                Viable_at_34 = case_when(OD_at_34_48h > 0.2 ~ "Yes",
+                                         TRUE ~ "No"))
+
+
+# Get 2 versions of this dataframe: one for the first 3 rows (to be harvested at ~20h), another one for the last 3 rows (to be harvested at ~48h)
+# Each of these is first triplicated (since each row in the dataframe represents a strain, and we'll have 3 replicates of each), then each of the dataframes is randomized separately, so the sample layout will not be the same across the first 3 rows and across the last 3 - I hope this is feasible with the Rotor or Pixl or whatever it is?? If I give it the location of each of them in the old plate?? So that we can randomize the samples, which I think is good practice, but obviously so that Wenxi doesn't have to do it manually
+# Anyway, after randomizing the rows in each dataframe, I replicate this three times 
+strains_for_proteomics_randomized_1 <- slice(strains_for_proteomics, rep(1:nrow(strains_for_proteomics), 3))                            # Get triplicates of the rows
+strains_for_proteomics_randomized_1 <- strains_for_proteomics_randomized_1[sample(nrow(strains_for_proteomics_randomized_1)),] %>%      # Randomize row order
+  dplyr::mutate(Column = rep(seq(from = 1, to = 12, by = 1), 3),                                                                        # Assign columns
+                Row = c(rep("A", 12), rep("B", 12), rep("C", 12))) %>%                                                                  # Assign rows
+  add_well_IDs(column_numbers_col = "Column",
+               row_letters_col = "Row")
+
+strains_for_proteomics_randomized_2 <- slice(strains_for_proteomics, rep(1:nrow(strains_for_proteomics), 3))                            # Get triplicates of the rows
+strains_for_proteomics_randomized_2 <- strains_for_proteomics_randomized_2[sample(nrow(strains_for_proteomics_randomized_2)),] %>%      # Randomize row order
+  dplyr::mutate(Column = rep(seq(from = 1, to = 12, by = 1), 3),                                                                        # Assign columns
+                Row = c(rep("E", 12), rep("F", 12), rep("G", 12))) %>%                                                                  # Assign rows
+  add_well_IDs(column_numbers_col = "Column",
+               row_letters_col = "Row")
+
+# Join the 2 so we get the whole layout for the plate
+strains_for_proteomics_final <- rbind(strains_for_proteomics_randomized_1, strains_for_proteomics_randomized_2)
+```
+
+
+## 6.2. Draw 96-well plate with the layout produced above
+```{r}
+# Color by strain
+raw_map(data = strains_for_proteomics_final$Sys.Name,
+        well = strains_for_proteomics_final$Well_ID,
+        plate = 96) +
+  ggtitle("Sample layout for proteomics experiment") +
+  theme_dark() +
+  theme(axis.text=element_text(size=6),
+        legend.key.size = unit(0.5, 'cm'),          # change legend key size
+        legend.key.height = unit(0.5, 'cm'),        # change legend key height
+        legend.key.width = unit(0.5, 'cm')) +       # change legend key width
+  guides(fill = guide_legend(ncol = 2)) +
+  labs(fill = "Strain")
+
+# Color by strain type
+raw_map(data = strains_for_proteomics_final$Status,
+        well = strains_for_proteomics_final$Well_ID,
+        plate = 96) +
+  theme_dark() +
+  theme(axis.text=element_text(size=6),
+        legend.key.size = unit(0.5, 'cm'),          # change legend key size
+        legend.key.height = unit(0.5, 'cm'),        # change legend key height
+        legend.key.width = unit(0.5, 'cm')) +       # change legend key width)
+  labs(title = "Sample layout for proteomics experiment",
+       fill = "Strain type")
+
+# Color by viable at 30ºC
+raw_map(data = strains_for_proteomics_final$Viable_at_30,
+        well = strains_for_proteomics_final$Well_ID,
+        plate = 96) +
+  theme_dark() +
+  theme(axis.text=element_text(size=6),
+        legend.key.size = unit(0.5, 'cm'),          # change legend key size
+        legend.key.height = unit(0.5, 'cm'),        # change legend key height
+        legend.key.width = unit(0.5, 'cm')) +       # change legend key width)
+  labs(title = "Sample layout for proteomics experiment",
+       fill = "Viable at 30ºC")
+
+# Color by viable at 34ºC
+raw_map(data = strains_for_proteomics_final$Viable_at_34,
+        well = strains_for_proteomics_final$Well_ID,
+        plate = 96) +
+  theme_dark() +
+  theme(axis.text=element_text(size=6),
+        legend.key.size = unit(0.5, 'cm'),          # change legend key size
+        legend.key.height = unit(0.5, 'cm'),        # change legend key height
+        legend.key.width = unit(0.5, 'cm')) +       # change legend key width)
+  labs(title = "Sample layout for proteomics experiment",
+       fill = "Viable at 34ºC")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
