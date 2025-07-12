@@ -69,6 +69,8 @@ if (which_try == "first_try") {
     growth_34 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/second_try/20250606-TSGC-34C-48.xlsx", sep=""), sheetIndex = 1)
 }
 
+# Load helper functions
+source(paste(base_dir, "tRNA_KOs/Code/R/Mine/0.general_use_functions.R", sep=""))
 
 # Sample IDs (metadata to match sample names)
 sample_ids <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/strains_for_pilot.xlsx", sep=""), sheetIndex = 1) %>%
@@ -140,6 +142,31 @@ make_long_and_add_fixed_temp <- function(df, fixed_temp) {
     dplyr::mutate(Temp_set = fixed_temp, .after = Temperature) %>%
     dplyr::rename(Temp_observed = Temperature) %>%
     pivot_longer(!c(Time, Temp_set, Temp_observed), names_to = "Strain", values_to = "OD_raw")
+  return(df)
+}
+
+#' Create an Empty dataframe - contains "Empty" value for all entries, except Well ID column
+#' which contains "Empty_n" with "n" being the number of the sample. We create 2 of these, 
+#' one for each empty row in the plate, to add the information of those wells to the main 
+#' data, so that we have all wells included there and don't get an error afterwards. Since
+#' we want to have the same number of columns as in the main data, and this might change in 
+#' time if I add extra columns there, I need to do this with this function, where I can 
+#' provide n_cols = ncol(main_data)
+#' The number of rows should always be 12 since that is the number of columns in a 96-well plate
+create_empty_df <- function(prefix, n_cols, well_ID_numbers) {
+  # First column: well IDs with given prefix (e.g., "A", "B", etc.)
+  first_col <- paste(prefix, seq(1, 12), sep = "")
+  
+  # Remaining columns: all "Empty", repeated 12 times
+  empty_matrix <- matrix("Empty", nrow = 12, ncol = n_cols - 2)
+  
+  # Last column: the one with the Well IDs - the IDs for this need to be provided, since they
+  # must be different between one empty row and the next, otherwise we'll have duplicated well IDs
+  last_col <- paste("Empty_", well_ID_numbers, sep="")
+  
+  # Combine first column with empty columns
+  df <- data.frame(first_col, empty_matrix, last_col, stringsAsFactors = FALSE)
+  
   return(df)
 }
 
@@ -224,28 +251,14 @@ process_plate_reader_growth_curves <- function(df,
   sample_ids_new <- rbind(rbind(sample_ids, sample_ids_2), sample_ids_3)
   
   # Need to add rows for the empty wells, otherwise I get an error later...
-  d_sample_ids <- data.frame(c(paste(empty_1, seq(1, 12, 1), sep="")),
-                             rep("Empty", 12),
-                             rep("Empty", 12),
-                             rep("Empty", 12),
-                             rep("Empty", 12),
-                             rep("Empty", 12),
-                             rep("Empty", 12),
-                             rep("Empty", 12),
-                             rep("Empty", 12),
-                             paste("Empty_", seq(1, 12, 1), sep=""))
+  d_sample_ids <- create_empty_df(prefix = empty_1,
+                                  n_cols = ncol(sample_ids_new),
+                                  well_ID_numbers = seq(1, 12, 1))
   colnames(d_sample_ids) <- colnames(sample_ids_new)
   
-  h_sample_ids <- data.frame(c(paste(empty_2, seq(1, 12, 1), sep="")),
-                             rep("Empty", 12),
-                             rep("Empty", 12),
-                             rep("Empty", 12),
-                             rep("Empty", 12),
-                             rep("Empty", 12),
-                             rep("Empty", 12),
-                             rep("Empty", 12),
-                             rep("Empty", 12),
-                             paste("Empty_", seq(13, 24, 1), sep=""))
+  h_sample_ids <- create_empty_df(prefix = empty_2,
+                                  n_cols = ncol(sample_ids_new),
+                                  well_ID_numbers = seq(13, 24, 1))
   colnames(h_sample_ids) <- colnames(sample_ids_new)
   
   sample_ids_new_2 <- rbind(rbind(sample_ids_new, d_sample_ids), h_sample_ids)
@@ -284,6 +297,101 @@ process_plate_reader_growth_curves <- function(df,
   else if (normalized_to_t0 == F & long_version == F) {
     return(df_avg)
   }
+}
+
+
+
+
+
+
+
+# Get full sample IDs for one plate (so I can plot the growth curve plates with raw_map())
+# This happens inside the wrapper above, in fact this is just a part of it, but it is not 
+# outputted from there nor would I like it to, this is just for a very punctual thing, at
+# least for now
+create_full_sample_ids_for_a_plate <- function(df, 
+                                               sample_ids,
+                                               replicates = list(c("A", "B", "C"), c("E", "F", "G")),
+                                               empty_rows = c("D", "H"),
+                                               fixed_temp, 
+                                               normalized_to_t0, 
+                                               long_version,
+                                               wrong_plate) {
+  
+  # First of all we make sure we have the timepoints on the rows and the wells on the columns,
+  # since one of the machines produces a dataframe in the opposite orientation
+  if (sum(grepl("Cycle.Nr.", colnames(df))) == 1) {
+    new_colnames <- df$Cycle.Nr.
+    df <- df %>%
+      dplyr::select(-Cycle.Nr.)
+    df <- as.data.frame(t(df)) 
+    colnames(df) <- new_colnames
+  }
+  
+  # Set the first two colnames to be "Time" and "Temperature", also get rid of rownames
+  colnames(df)[1] <- "Time"
+  colnames(df)[2] <- "Temperature"
+  rownames(df) <- NULL
+  
+  # Remove NAs in case full NA rows were introduced by Excel
+  df <- na.omit(df)
+  
+  # There was a plate in which D row was not left empty (30ºC, first try) - need to do this horrible thing to take care of that
+  if (wrong_plate == T) {
+    ##   - row D in the plate is now row E in my dataset
+    ##   - row E in the plate is now row F in my dataset
+    ##   - row F in the plate is now row G in my dataset
+    ##   - row G in the plate (empty) is now row D in my dataset
+    ## SO REMEMBER THAT LABELS IN THE ANALYSIS FOR ROWS FROM D ARE CHANGED HERE!
+    new_colnames <- c("Time", "Temperature",
+                      paste("A", seq(1, 12, 1), sep = ""),
+                      paste("B", seq(1, 12, 1), sep = ""), 
+                      paste("C", seq(1, 12, 1), sep = ""), 
+                      paste("E", seq(1, 12, 1), sep = ""), 
+                      paste("F", seq(1, 12, 1), sep = ""),
+                      paste("G", seq(1, 12, 1), sep = ""),
+                      paste("D", seq(1, 12, 1), sep = ""),
+                      paste("H", seq(1, 12, 1), sep = ""))
+    colnames(df) <- new_colnames
+  }
+  
+  # Extract the names of the rows that contain the replicates
+  r1 <- replicates[[1]][1]
+  r2 <- replicates[[1]][2]
+  r3 <- replicates[[1]][3]
+  r4 <- replicates[[2]][1]
+  r5 <- replicates[[2]][2]
+  r6 <- replicates[[2]][3]
+  empty_1 <- empty_rows[1]
+  empty_2 <- empty_rows[2]
+  
+  # Sample IDs - replicate it a couple times changing IDs, since the samples in wells A, B and C are triplicates of the same sample, and the same for E, F, G
+  sample_ids_2 <- sample_ids %>%
+    dplyr::mutate(GC96 = case_when(grepl(r1, GC96) ~ str_replace(GC96, r1, r2),
+                                   grepl(r4, GC96) ~ str_replace(GC96, r4, r5)),
+                  Sample.ID = paste(Sys.Name, "_2", sep=""))
+  sample_ids_3 <- sample_ids %>%
+    dplyr::mutate(GC96 = case_when(grepl(r1, GC96) ~ str_replace(GC96, r1, r3),
+                                   grepl(r4, GC96) ~ str_replace(GC96, r4, r6)),
+                  Sample.ID = paste(Sys.Name, "_3", sep=""))
+  
+  sample_ids_new <- rbind(rbind(sample_ids, sample_ids_2), sample_ids_3)
+  
+  # Need to add rows for the empty wells, otherwise I get an error later...
+  d_sample_ids <- create_empty_df(prefix = empty_1,
+                                  n_cols = ncol(sample_ids_new),
+                                  well_ID_numbers = seq(1, 12, 1))
+  colnames(d_sample_ids) <- colnames(sample_ids_new)
+  
+  h_sample_ids <- create_empty_df(prefix = empty_2,
+                                  n_cols = ncol(sample_ids_new),
+                                  well_ID_numbers = seq(13, 24, 1))
+  colnames(h_sample_ids) <- colnames(sample_ids_new)
+  
+  sample_ids_new_2 <- rbind(rbind(sample_ids_new, d_sample_ids), h_sample_ids)
+  
+  
+  return(sample_ids_new_2)
 }
 ```
 
@@ -906,9 +1014,34 @@ raw_map(data = strains_for_proteomics_final$Viable_at_34,
        fill = "Viable at 34ºC")
 ```
 
+## 6.3. Get a drawing of the plate of the growth curves
+For comparison in the presentation, to show how all replicates were together
+```{r}
+# Come up with the full sample IDs of the plate
+sample_ids_new_2 <- create_full_sample_ids_for_a_plate(df = growth_26,
+                                                           sample_ids = sample_ids, 
+                                                           replicates = list(c("A", "B", "C"), c("E", "F", "G")),
+                                                           empty_rows = c("D", "H"),
+                                                           fixed_temp = 26,
+                                                           normalized_to_t0 = F,
+                                                           long_version = T,
+                                                           wrong_plate = F)
 
+# Fix well IDs
+sample_ids_new_2 <- fix_well_ids_with_no_0s(sample_ids_new_2, "GC96")
 
-
+# Color by viable at 34ºC
+raw_map(data = sample_ids_new_2$Sys.Name,
+        well = sample_ids_new_2$GC96,
+        plate = 96) +
+  theme_dark() +
+  theme(axis.text=element_text(size=6),
+        legend.key.size = unit(0.5, 'cm'),          # change legend key size
+        legend.key.height = unit(0.5, 'cm'),        # change legend key height
+        legend.key.width = unit(0.5, 'cm')) +       # change legend key width)
+  labs(title = "Sample layout for growth curves",
+       fill = "Strains")
+```
 
 
 
