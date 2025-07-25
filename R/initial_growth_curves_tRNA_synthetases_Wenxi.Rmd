@@ -32,7 +32,7 @@ set.seed(2025)
 # 0. Set up
 ## 0.1. Set up directory
 ```{r}
-working_from = "charite"
+working_from = "home"
 
 if (working_from == "home") {
   base_dir = "/home/alvaro/MyStuff/"
@@ -42,12 +42,15 @@ if (working_from == "home") {
   }
 
 
-which_try = "second_try"                 # This indicates which of the 2 sets of OD measurements Wenxi did we want to look at 
+which_try = "third_try"                 # This indicates which of the 2 sets of OD measurements Wenxi did we want to look at 
 if (which_try == "first_try") {
   try_for_plots = "First round"
 } else
   if (which_try == "second_try") {
     try_for_plots = "Second round"
+  } else
+  if (which_try == "third_try") {
+    try_for_plots = "Third round"
   }
 
 ```
@@ -67,6 +70,13 @@ if (which_try == "first_try") {
     growth_26 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/second_try/20250606-TSGC-26C-48.xlsx", sep=""), sheetIndex = 1)
     growth_30 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/second_try/20250623-TSGC-30C-48.xlsx", sep=""), sheetIndex = 1)
     growth_34 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/second_try/20250606-TSGC-34C-48.xlsx", sep=""), sheetIndex = 1)
+  } else 
+  if (which_try == "third_try") {
+    # Second try - data from the second time Wenxi did the growth curves - 48h
+    growth_22 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/third_try/20250724-highOD-22.xlsx", sep=""), sheetIndex = 1)
+    growth_26 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/third_try/20250724-highOD-26.xlsx", sep=""), sheetIndex = 1)
+    growth_30 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/third_try/20250724-highOD-30.xlsx", sep=""), sheetIndex = 1)
+    growth_34 <- read.xlsx(file = paste(base_dir, "TSSC/Data/pilot/pre_test_growth_curves/third_try/20250724-highOD-34.xlsx", sep=""), sheetIndex = 1)
 }
 
 # Load helper functions
@@ -169,6 +179,21 @@ create_empty_df <- function(prefix, n_cols, well_ID_numbers) {
   
   return(df)
 }
+
+
+
+
+#################################################################################
+#df = growth_22
+#sample_ids = sample_ids
+#replicates = list(c("A", "B", "C"), c("E", "F", "G"))
+#empty_rows = c("D", "H")
+#fixed_temp = 22
+#normalized_to_t0 = T
+#long_version = T
+#wrong_plate = F
+#################################################################################
+
 
 
 
@@ -393,6 +418,15 @@ create_full_sample_ids_for_a_plate <- function(df,
   
   return(sample_ids_new_2)
 }
+
+
+# Create a function which we can use to filter out all data points after a certain time (necessary for the third try, we only want to go up to 6h)
+cut_off_at_a_certain_time <- function(df, time_limit) {
+  df <- df %>%
+    dplyr::filter(Time < time_limit)
+  return(df)
+}
+
 ```
 
 ## 1.2. Run pre-processing - for the datasets from the first set of growth curves
@@ -491,7 +525,7 @@ if (which_try == "first_try") {
 
 
 # Those from the second set
-if (which_try == "second_try") {
+if (which_try == "second_try"|which_try == "third_try") {
   # Here we get: 
   # - Long version
   # - Normalized to time 0
@@ -531,6 +565,8 @@ if (which_try == "second_try") {
                                                            normalized_to_t0 = T,
                                                            long_version = T,
                                                            wrong_plate = F)
+  
+  
   # Join results from this into a single long dataframe with all temperatures, to plot from
   growth_long_full_norm <- rbind(rbind(rbind(growth_22_avg_norm_long, growth_26_avg_norm_long), growth_30_avg_norm_long), growth_34_avg_norm_long)
   
@@ -616,6 +652,7 @@ if (which_try == "second_try") {
                                                            normalized_to_t0 = F,
                                                            long_version = T,
                                                            wrong_plate = F)
+  
   # Join results from this into a single long dataframe with all temperatures, to plot from
   growth_long_full_raw <- rbind(rbind(rbind(growth_22_avg_long_raw, growth_26_avg_long_raw), growth_30_avg_long_raw), growth_34_avg_long_raw)
 }
@@ -630,6 +667,12 @@ growth_long_full_norm <- growth_long_full_norm %>%
 growth_long_full_raw <- growth_long_full_raw %>%
   dplyr::mutate(Time_secs = Time,
                 Time = Time_secs/3600)
+
+# Cut off at time = 6h
+if (which_try == "third_try") {
+    growth_long_full_norm <- cut_off_at_a_certain_time(growth_long_full_norm, 6)
+    growth_long_full_raw <- cut_off_at_a_certain_time(growth_long_full_raw, 6)
+}
 ```
 
 
@@ -659,6 +702,22 @@ if (which_try == "first_try") {
        subtitle = try_for_plots)
 } else 
   if (which_try == "second_try") {
+  ggplot() +
+  geom_line(data = subset(growth_long_full_norm, Temp_set == 22), aes(x = Time, y = Temp_observed), col = "orange", linewidth = 1) +
+  geom_line(data = subset(growth_long_full_norm, Temp_set == 26), aes(x = Time, y = Temp_observed), col = "darkgreen", linewidth = 1) +
+  geom_line(data = subset(growth_long_full_norm, Temp_set == 30), aes(x = Time, y = Temp_observed), col = "blue", linewidth = 1) +
+  geom_line(data = subset(growth_long_full_norm, Temp_set == 34), aes(x = Time, y = Temp_observed), col = "purple", linewidth = 1) +
+  geom_hline(yintercept = 22, col = "black") +
+  geom_hline(yintercept = 26, col = "black") +
+  geom_hline(yintercept = 30, col = "black") +
+  geom_hline(yintercept = 34, col = "black") +
+  theme_light() +
+  xlab("Time (h)") +
+  ylab("Temperature") +
+  labs(title = "How well did the incubators maintain their assigned temperature?",
+       subtitle = try_for_plots)
+  } else 
+  if (which_try == "third_try") {
   ggplot() +
   geom_line(data = subset(growth_long_full_norm, Temp_set == 22), aes(x = Time, y = Temp_observed), col = "orange", linewidth = 1) +
   geom_line(data = subset(growth_long_full_norm, Temp_set == 26), aes(x = Time, y = Temp_observed), col = "darkgreen", linewidth = 1) +
@@ -1053,6 +1112,9 @@ raw_map(data = sample_ids_new_2$Sys.Name,
 
 
 
+```{r}
+
+```
 
 
 
